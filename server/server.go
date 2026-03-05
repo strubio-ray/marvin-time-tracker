@@ -14,11 +14,13 @@ type Server struct {
 
 func NewServer(store *StateStore, dedup *DedupCache, notifier Notifier) *Server {
 	wh := NewWebhookHandler(store, dedup, notifier)
+	rh := NewRegisterHandler(store)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /status", statusHandler(store))
 	mux.HandleFunc("POST /webhook/start", wh.HandleStart)
 	mux.HandleFunc("POST /webhook/stop", wh.HandleStop)
+	mux.HandleFunc("POST /register", rh.Handle)
 
 	c := cors.New(cors.Options{
 		AllowedOrigins:     []string{"*"},
