@@ -12,3 +12,16 @@ Vagrantfile
 !.vm/worktree-files.yml
 !.vm/worktree-setup.sh
 # END agent-sandbox managed
+
+# Go
+server/marvin-relay
+
+# iOS
+ios/*.xcodeproj
+ios/DerivedData/
+
+# Environment and secrets
+.env
+*.p8
+state.json
+
