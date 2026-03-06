@@ -31,7 +31,7 @@ open MarvinTimeTracker.xcodeproj     # Open in Xcode
 # Fastlane (run from ios/ directory)
 bundle exec fastlane setup           # Generate project + sync dev signing
 bundle exec fastlane deploy          # Build, install, launch on device
-bundle exec fastlane certs           # Sync certificates via match
+bundle exec fastlane sync_certs      # Sync certificates via match
 bundle exec fastlane build           # Release build only (no upload)
 bundle exec fastlane testflight_release  # Build + upload to TestFlight
 ```
@@ -92,7 +92,7 @@ iOS App → POST /start|/stop → Marvin API (via Go server proxy)
 
 Server configured via env vars (see `.env.example` in project root):
 - `MARVIN_API_TOKEN` (required)
-- `APNS_KEY_ID`, `APNS_TEAM_ID`, `APNS_PRIVATE_KEY_PATH`, `APNS_BUNDLE_ID`
+- `APNS_KEY_ID`, `APNS_TEAM_ID`, `APNS_KEY_P8_PATH`, `APNS_BUNDLE_ID`
 - `STATE_FILE_PATH`, `LISTEN_ADDR`, `POLL_INTERVAL_ACTIVE`, `POLL_INTERVAL_IDLE`
 
 iOS signing requires:

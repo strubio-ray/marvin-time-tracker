@@ -19,6 +19,7 @@ server/marvin-relay
 # iOS
 ios/*.xcodeproj
 ios/DerivedData/
+ios/build/
 
 # Environment and secrets
 .env

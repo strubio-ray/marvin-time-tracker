@@ -166,7 +166,7 @@ All via environment variables:
 |---|---|
 | `APNS_KEY_ID` | Apple p8 key identifier |
 | `APNS_TEAM_ID` | Apple Developer Team ID |
-| `APNS_PRIVATE_KEY_PATH` | Path to `.p8` key file |
+| `APNS_KEY_P8_PATH` | Path to `.p8` key file |
 | `APNS_BUNDLE_ID` | iOS app bundle identifier |
 | `MARVIN_API_TOKEN` | Marvin API token for fallback polling |
 | `STATE_FILE_PATH` | Path to JSON state file (default: `./state.json`) |

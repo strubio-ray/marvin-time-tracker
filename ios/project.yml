@@ -18,14 +18,19 @@ configFiles:
 targets:
   MarvinTimeTracker:
     type: application
-    platform: iOS
+    supportedDestinations: [iOS]
     sources:
       - path: MarvinTimeTracker
       - path: Shared
     settings:
       base:
+        GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_NSSupportsLiveActivities: YES
         INFOPLIST_KEY_NSSupportsLiveActivitiesFrequentUpdates: YES
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UISupportedInterfaceOrientations: "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
+        INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: NO
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         PRODUCT_BUNDLE_IDENTIFIER: com.strubio.MarvinTimeTracker
       configs:
         Debug:
@@ -45,14 +50,20 @@ targets:
 
   MarvinTimeTrackerWidgets:
     type: app-extension
-    platform: iOS
+    supportedDestinations: [iOS]
     sources:
       - path: MarvinTimeTrackerWidgets
       - path: Shared
+    info:
+      path: MarvinTimeTrackerWidgets/Info.plist
+      properties:
+        CFBundleDisplayName: MarvinTimeTracker Widgets
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
     settings:
       base:
+        GENERATE_INFOPLIST_FILE: YES
         PRODUCT_BUNDLE_IDENTIFIER: com.strubio.MarvinTimeTracker.widgets
-        INFOPLIST_KEY_NSExtension_NSExtensionPointIdentifier: com.apple.widgetkit-extension
       configs:
         Debug:
           CODE_SIGN_IDENTITY: "Apple Development"

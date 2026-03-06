@@ -1,9 +1,17 @@
+# Canonical copy lives in the homebrew-tap repo: strubio-ray/homebrew-tap
+# This file is kept as a development reference.
 class MarvinRelay < Formula
   desc "Go relay server bridging Amazing Marvin webhooks to Apple Live Activities"
-  homepage "https://github.com/strubio/marvin-time-tracker"
-  url "https://github.com/strubio/marvin-time-tracker/archive/refs/tags/v0.1.0.tar.gz"
-  sha256 "UPDATE_WITH_ACTUAL_SHA256"
+  homepage "https://github.com/strubio-ray/marvin-time-tracker"
+  version "0.1.0"
+  url "https://github.com/strubio-ray/marvin-time-tracker/archive/refs/tags/v#{version}.tar.gz"
+  sha256 "UPDATE_WITH_ACTUAL_SHA256" # TODO: update after first release
   license "MIT"
+
+  livecheck do
+    url :stable
+    strategy :github_latest
+  end
 
   depends_on "go" => :build
 
@@ -25,6 +33,6 @@ class MarvinRelay < Formula
   end
 
   test do
-    assert_match "marvin-relay", shell_output("#{bin}/marvin-relay --help 2>&1", 2)
+    assert_match "marvin-relay 0.1.0", shell_output("#{bin}/marvin-relay --version")
   end
 end

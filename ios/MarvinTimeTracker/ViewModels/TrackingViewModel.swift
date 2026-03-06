@@ -2,6 +2,7 @@ import Foundation
 import ActivityKit
 import Observation
 
+@MainActor
 @Observable
 final class TrackingViewModel {
     var trackingState: TrackingState = .idle

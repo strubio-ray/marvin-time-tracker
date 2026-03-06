@@ -2,8 +2,8 @@ import AppIntents
 import Foundation
 
 struct StopTrackingIntent: LiveActivityIntent {
-    static var title: LocalizedStringResource = "Stop Tracking"
-    static var description: IntentDescription = "Stops the current time tracking session"
+    static let title: LocalizedStringResource = "Stop Tracking"
+    static let description: IntentDescription = "Stops the current time tracking session"
 
     func perform() async throws -> some IntentResult {
         guard let defaults = UserDefaults(suiteName: "group.com.strubio.MarvinTimeTracker"),

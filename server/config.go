@@ -27,7 +27,7 @@ func LoadConfig() (*Config, error) {
 	cfg := &Config{
 		APNsKeyID:          os.Getenv("APNS_KEY_ID"),
 		APNsTeamID:         os.Getenv("APNS_TEAM_ID"),
-		APNsPrivateKeyPath: os.Getenv("APNS_PRIVATE_KEY_PATH"),
+		APNsPrivateKeyPath: os.Getenv("APNS_KEY_P8_PATH"),
 		APNsBundleID:       envOrDefault("APNS_BUNDLE_ID", "com.strubio.MarvinTimeTracker"),
 		MarvinAPIToken:     token,
 		StateFilePath:      envOrDefault("STATE_FILE_PATH", "./state.json"),
