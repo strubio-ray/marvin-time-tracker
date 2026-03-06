@@ -25,3 +25,13 @@ ios/DerivedData/
 *.p8
 state.json
 
+# Fastlane
+ios/fastlane/report.xml
+ios/fastlane/README.md
+ios/fastlane/test_output/
+
+# Ruby
+ios/vendor/bundle/
+ios/.bundle/
+ios/Gemfile.lock
+

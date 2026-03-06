@@ -28,7 +28,7 @@ Marvin API (GET /api/trackedItem)
 ### Server
 
 ```bash
-cp server/.env.example .env
+cp .env.example .env
 # Edit .env with your tokens and keys
 make build
 make run
@@ -38,7 +38,8 @@ make run
 
 ```bash
 cd ios
-xcodegen generate
+bundle install
+bundle exec fastlane setup
 open MarvinTimeTracker.xcodeproj
 ```
 

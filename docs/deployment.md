@@ -46,7 +46,7 @@ Create the environment file:
 
 ```bash
 cp /usr/local/share/marvin-relay/.env.example ~/Library/Application\ Support/marvin-relay/.env
-# Edit with your tokens and key paths
+# Edit with your tokens and key paths (see .env.example in the project root for all variables)
 ```
 
 Start the service:
@@ -63,7 +63,7 @@ cd marvin-time-tracker
 make build
 
 # Copy .env.example and configure
-cp server/.env.example .env
+cp .env.example .env
 # Edit .env with your values
 
 # Run
@@ -86,18 +86,46 @@ Now that the server is running and reachable, go back to Marvin and add the webh
 
 ## Step 7: Install iOS App
 
+### First time: install Ruby dependencies
+
 ```bash
 cd ios
-xcodegen generate
-open MarvinTimeTracker.xcodeproj
+bundle install
 ```
 
-1. Connect iPhone, select as run destination
-2. Build and run
-3. Enter server URL and Marvin API token in the app
-4. Grant notification permissions
+### Build, install, and launch on device
 
-## Step 8: Test End-to-End
+```bash
+bundle exec fastlane deploy
+```
+
+This generates the Xcode project, syncs signing via match, builds, installs on
+the connected iPhone, and launches the app.
+
+1. Enter server URL and Marvin API token in the app
+2. Grant notification permissions
+
+## Step 8: TestFlight Release (optional)
+
+To distribute via TestFlight instead of sideloading:
+
+1. Create an App Store Connect API key at
+   [App Store Connect > Users and Access > Integrations](https://appstoreconnect.apple.com/access/integrations/api)
+2. Add the key details to your `.env`:
+   - `ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_KEY_P8_PATH`
+3. Run `bundle exec fastlane certs_renew` to generate appstore profiles
+   (first time only — creates profiles in the fastlane-certificates repo)
+4. Upload to TestFlight:
+
+```bash
+cd ios
+bundle exec fastlane testflight_release
+```
+
+This syncs appstore signing, queries TestFlight for the latest build number,
+builds a release archive, uploads to TestFlight, and tags the git commit.
+
+## Step 9: Test End-to-End
 
 1. Start tracking a task in Marvin (web or desktop)
 2. Verify Live Activity appears on iPhone Lock Screen and Dynamic Island

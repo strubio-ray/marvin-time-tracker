@@ -1,0 +1,174 @@
+# Skip cocogitto commit-msg hook — Fastlane's commit messages don't follow Conventional Commits
+ENV["SKIP_COG"] = "1"
+
+# Helper to get App Store Connect API key
+# Uses key_filepath for local builds, key_content for CI
+def get_api_key
+  key_id = ENV["ASC_KEY_ID"]
+  issuer_id = ENV["ASC_ISSUER_ID"]
+  key_content = ENV["ASC_KEY_CONTENT"]
+  key_path = ENV["ASC_KEY_P8_PATH"]
+
+  UI.user_error!("ASC_KEY_ID not set. Check your .env file.") if key_id.nil? || key_id.empty?
+  UI.user_error!("ASC_ISSUER_ID not set. Check your .env file.") if issuer_id.nil? || issuer_id.empty?
+
+  if key_content && !key_content.empty?
+    app_store_connect_api_key(
+      key_id: key_id,
+      issuer_id: issuer_id,
+      key_content: key_content,
+      is_key_content_base64: false,
+      in_house: false
+    )
+  else
+    app_store_connect_api_key(
+      key_id: key_id,
+      issuer_id: issuer_id,
+      key_filepath: File.expand_path(key_path || "~/.private_keys/AuthKey.p8"),
+      in_house: false
+    )
+  end
+end
+
+def generate_changelog_from_git
+  last_tag = sh("git describe --tags --abbrev=0 2>/dev/null || echo ''", log: false).strip
+
+  if last_tag.empty?
+    changelog = sh("git log --oneline -20", log: false)
+  else
+    changelog = sh("git log #{last_tag}..HEAD --oneline", log: false)
+  end
+
+  lines = changelog.strip.split("\n")
+  if lines.empty?
+    UI.important("No commits found since last tag, using generic changelog")
+    "Bug fixes and improvements"
+  else
+    lines.map { |line| "- #{line.split(' ', 2)[1]}" }.join("\n")
+  end
+end
+
+default_platform(:ios)
+
+platform :ios do
+  desc "Sync certificates and profiles via match"
+  lane :certs do
+    api_key = get_api_key
+    match(type: "development", api_key: api_key, readonly: is_ci)
+    match(type: "appstore", api_key: api_key, readonly: is_ci)
+  end
+
+  desc "Regenerate certificates and profiles"
+  lane :certs_renew do
+    match(type: "development", force_for_new_devices: true)
+    match(type: "appstore")
+  end
+
+  desc "Generate Xcode project and sync signing"
+  lane :setup do
+    sh("cd .. && /opt/homebrew/bin/xcodegen generate")
+    match(type: "development", readonly: true)
+  end
+
+  desc "Build, install, and launch on device"
+  lane :deploy do
+    device_id = "00008130-000149642E43001C"
+
+    setup
+
+    xcodebuild(
+      project: "MarvinTimeTracker.xcodeproj",
+      scheme: "MarvinTimeTracker",
+      destination: "platform=iOS,id=#{device_id}",
+      derivedDataPath: "/tmp/marvin-build",
+      build: true
+    )
+
+    sh("xcrun devicectl device install app --device #{device_id} /tmp/marvin-build/Build/Products/Debug-iphoneos/MarvinTimeTracker.app")
+    sh("xcrun devicectl device process launch --device #{device_id} com.strubio.MarvinTimeTracker")
+  end
+
+  desc "Build and upload to TestFlight"
+  lane :testflight_release do |options|
+    api_key = get_api_key
+
+    # Query TestFlight for the latest build number
+    latest = latest_testflight_build_number(
+      api_key: api_key,
+      app_identifier: "com.strubio.MarvinTimeTracker"
+    )
+    next_build = latest + 1
+    UI.message("Latest TestFlight build: #{latest}, next: #{next_build}")
+
+    build_number = next_build.to_s
+    version = get_version_number(xcodeproj: "MarvinTimeTracker.xcodeproj", target: "MarvinTimeTracker")
+
+    UI.header("Building MarvinTimeTracker v#{version} (#{build_number})")
+
+    # Setup code signing
+    match(type: "appstore", api_key: api_key, readonly: is_ci)
+
+    # Build the app
+    gym(
+      project: "MarvinTimeTracker.xcodeproj",
+      scheme: "MarvinTimeTracker",
+      configuration: "Release",
+      export_method: "app-store",
+      export_options: {
+        provisioningProfiles: {
+          "com.strubio.MarvinTimeTracker" => "match AppStore com.strubio.MarvinTimeTracker",
+          "com.strubio.MarvinTimeTracker.widgets" => "match AppStore com.strubio.MarvinTimeTracker.widgets"
+        }
+      },
+      output_directory: "./build",
+      output_name: "MarvinTimeTracker.ipa",
+      xcargs: "CURRENT_PROJECT_VERSION=#{build_number}",
+      clean: true
+    )
+
+    # Generate changelog
+    changelog = options[:changelog] || generate_changelog_from_git
+
+    # Upload to TestFlight
+    pilot(
+      api_key: api_key,
+      ipa: "./build/MarvinTimeTracker.ipa",
+      skip_waiting_for_build_processing: true,
+      skip_submission: true,
+      distribute_external: false,
+      changelog: changelog,
+      notify_external_testers: false
+    )
+
+    # Tag the release
+    add_git_tag(
+      tag: "v#{version}-#{build_number}",
+      message: "TestFlight release #{version} (#{build_number})"
+    )
+
+    UI.success("Successfully uploaded v#{version} (#{build_number}) to TestFlight!")
+  end
+
+  desc "Build only (no upload)"
+  lane :build do
+    api_key = get_api_key
+
+    match(type: "appstore", api_key: api_key, readonly: true)
+
+    gym(
+      project: "MarvinTimeTracker.xcodeproj",
+      scheme: "MarvinTimeTracker",
+      configuration: "Release",
+      export_method: "app-store",
+      export_options: {
+        provisioningProfiles: {
+          "com.strubio.MarvinTimeTracker" => "match AppStore com.strubio.MarvinTimeTracker",
+          "com.strubio.MarvinTimeTracker.widgets" => "match AppStore com.strubio.MarvinTimeTracker.widgets"
+        }
+      },
+      output_directory: "./build",
+      output_name: "MarvinTimeTracker.ipa",
+      clean: true
+    )
+  end
+end

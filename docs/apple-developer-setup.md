@@ -36,31 +36,52 @@
 2. Click **+** to register a new key
 3. Key Name: `Marvin APNs`
 4. Enable **Apple Push Notifications service (APNs)**
-5. Click **Continue** > **Register**
-6. **Download the .p8 file** (you can only download it once)
-7. Note the **Key ID** (10 characters, shown on the key details page)
-8. Note your **Team ID** (shown in [Membership](https://developer.apple.com/account/#/membership))
+5. Click **Continue**
+6. Configure the two dropdown settings:
+   - **Environment:** `Sandbox & Production`
+   - **Key Restriction:** `Team Scoped (All Topics)`
+7. Click **Register**
+8. **Download the .p8 file** (you can only download it once)
+9. Note the **Key ID** (10 characters, shown on the key details page)
+10. Note your **Team ID** (shown in [Membership](https://developer.apple.com/account/#/membership))
 
-## 5. Configure Server
+## 5. Configure Environment
 
-Copy the p8 file to your server and set environment variables:
+Copy `.env.example` (project root) to `.env` and fill in the values from the previous steps:
 
-```bash
-APNS_KEY_ID=<your key ID>
-APNS_TEAM_ID=<your team ID>
-APNS_PRIVATE_KEY_PATH=./AuthKey_<key-id>.p8
-APNS_BUNDLE_ID=com.strubio.MarvinTimeTracker
-```
+| Variable | Source |
+|---|---|
+| `APNS_KEY_ID` | Key ID from step 4 (10 characters) |
+| `APNS_TEAM_ID` | Team ID from [Membership](https://developer.apple.com/account/#/membership) |
+| `APNS_PRIVATE_KEY_PATH` | Path to the .p8 file downloaded in step 4 |
+| `DEVELOPMENT_TEAM` | Same as `APNS_TEAM_ID` |
+
+Copy the .p8 file to your server directory.
 
 ## 6. Build and Install iOS App
 
+### First time: install Ruby dependencies
+
 ```bash
 cd ios
-xcodegen generate
-open MarvinTimeTracker.xcodeproj
+bundle install
 ```
 
-1. Select your development team in Xcode signing settings
-2. Connect your iPhone
-3. Build and run (Cmd+R)
-4. Trust the developer certificate on iPhone: Settings > General > VPN & Device Management
+### Generate project and sync signing
+
+```bash
+bundle exec fastlane setup
+```
+
+This runs `xcodegen generate` and fetches match-managed development certificates
+and provisioning profiles from the private certificates repo.
+
+### Build, install, and launch on device
+
+```bash
+bundle exec fastlane deploy
+```
+
+This builds the app, installs it on the connected iPhone, and launches it.
+
+On first install, trust the developer certificate on iPhone: Settings > General > VPN & Device Management.

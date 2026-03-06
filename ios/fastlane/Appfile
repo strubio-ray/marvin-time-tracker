@@ -1,0 +1,2 @@
+app_identifier ["com.strubio.MarvinTimeTracker", "com.strubio.MarvinTimeTracker.widgets"]
+team_id ENV["DEVELOPMENT_TEAM"] || ""
