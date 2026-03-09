@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"log"
 	"net/http"
@@ -14,7 +15,10 @@ func main() {
 		os.Exit(0)
 	}
 
-	cfg, err := LoadConfig()
+	configPath := flag.String("config", "", "path to config file")
+	flag.Parse()
+
+	cfg, err := LoadConfig(*configPath)
 	if err != nil {
 		log.Fatalf("config error: %v", err)
 	}

@@ -1,0 +1,19 @@
+# Marvin Relay Configuration
+# Environment variables override values set here.
+
+# Marvin API (required)
+MARVIN_API_TOKEN = your-marvin-api-token-here
+
+# Apple Push Notification Service
+APNS_KEY_ID = XXXXXXXXXX
+APNS_TEAM_ID = XXXXXXXXXX
+APNS_KEY_P8_PATH = /opt/homebrew/etc/marvin-relay/AuthKey.p8
+APNS_BUNDLE_ID = com.strubio.MarvinTimeTracker
+
+# Server
+LISTEN_ADDR = :8080
+STATE_FILE_PATH = /opt/homebrew/var/marvin-relay/state.json
+
+# Polling intervals
+POLL_INTERVAL_ACTIVE = 30s
+POLL_INTERVAL_IDLE = 5m
