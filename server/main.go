@@ -45,10 +45,14 @@ func main() {
 
 	// Initialize Marvin client and poller
 	marvin := NewMarvinClient(cfg.MarvinAPIToken)
-	quota := NewQuotaCounter()
-	poller := NewPoller(marvin, store, notifier, cfg.PollIntervalActive, cfg.PollIntervalIdle, quota)
-	poller.Start()
-	log.Printf("poller started (active=%v, idle=%v)", cfg.PollIntervalActive, cfg.PollIntervalIdle)
+	if cfg.PollEnabled {
+		quota := NewQuotaCounter()
+		poller := NewPoller(marvin, store, notifier, cfg.PollIntervalActive, cfg.PollIntervalIdle, quota)
+		poller.Start()
+		log.Printf("poller started (active=%v, idle=%v)", cfg.PollIntervalActive, cfg.PollIntervalIdle)
+	} else {
+		log.Printf("poller disabled (webhooks only)")
+	}
 
 	// Start 8-hour Live Activity renewal
 	renewal := NewRenewal(store, notifier)

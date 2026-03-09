@@ -19,6 +19,8 @@ LISTEN_ADDR = :8080
 # Dev: ./state.json | Homebrew: /opt/homebrew/var/marvin-relay/state.json
 STATE_FILE_PATH = ./state.json
 
-# Polling intervals
+# Polling (fallback for unreliable webhooks)
+# Set to false to use webhooks only
+POLL_ENABLED = true
 POLL_INTERVAL_ACTIVE = 30s
 POLL_INTERVAL_IDLE = 5m
