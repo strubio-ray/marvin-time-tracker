@@ -12,11 +12,14 @@ type State struct {
 	TrackingTaskID       string    `json:"trackingTaskId,omitempty"`
 	TaskTitle            string    `json:"taskTitle,omitempty"`
 	StartedAt            int64     `json:"startedAt,omitempty"`
+	Times                []int64   `json:"times,omitempty"`
 	PushToStartToken     string    `json:"pushToStartToken,omitempty"`
 	UpdateToken          string    `json:"updateToken,omitempty"`
+	DeviceToken          string    `json:"deviceToken,omitempty"`
 	LiveActivityStartedAt time.Time `json:"liveActivityStartedAt,omitempty"`
 	LastPollAt           time.Time `json:"lastPollAt,omitempty"`
 	LastWebhookAt        time.Time `json:"lastWebhookAt,omitempty"`
+	LastStopAt           time.Time `json:"lastStopAt,omitempty"`
 }
 
 func (s State) IsTracking() bool {

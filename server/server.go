@@ -19,7 +19,7 @@ func NewServer(store *StateStore, dedup *DedupCache, notifier Notifier, opts ...
 	}
 
 	wh := NewWebhookHandler(store, dedup, notifier)
-	rh := NewRegisterHandler(store)
+	rh := NewRegisterHandler(store, notifier)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /status", statusHandler(store))
@@ -71,6 +71,7 @@ func statusHandler(store *StateStore) http.HandlerFunc {
 			"tracking":           state.IsTracking(),
 			"hasPushToStartToken": state.PushToStartToken != "",
 			"hasUpdateToken":      state.UpdateToken != "",
+			"hasDeviceToken":      state.DeviceToken != "",
 		}
 
 		if state.IsTracking() {

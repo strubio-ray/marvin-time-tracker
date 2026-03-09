@@ -13,7 +13,8 @@ type Config struct {
 	APNsTeamID         string
 	APNsPrivateKeyPath string
 	APNsBundleID       string
-	MarvinAPIToken     string
+	MarvinAPIToken          string
+	MarvinFullAccessToken   string
 	StateFilePath      string
 	ListenAddr         string
 	PollEnabled        bool
@@ -41,12 +42,18 @@ func LoadConfig(configPath string) (*Config, error) {
 		return nil, fmt.Errorf("MARVIN_API_TOKEN is required")
 	}
 
+	fullAccessToken := get("MARVIN_FULL_ACCESS_TOKEN")
+	if fullAccessToken == "" {
+		return nil, fmt.Errorf("MARVIN_FULL_ACCESS_TOKEN is required (get from https://app.amazingmarvin.com/pre?api)")
+	}
+
 	cfg := &Config{
 		APNsKeyID:          get("APNS_KEY_ID"),
 		APNsTeamID:         get("APNS_TEAM_ID"),
 		APNsPrivateKeyPath: expandHome(get("APNS_KEY_P8_PATH")),
 		APNsBundleID:       getOrDefault(get, "APNS_BUNDLE_ID", "com.strubio.MarvinTimeTracker"),
-		MarvinAPIToken:     token,
+		MarvinAPIToken:          token,
+		MarvinFullAccessToken:   fullAccessToken,
 		StateFilePath:      getOrDefault(get, "STATE_FILE_PATH", "./state.json"),
 		ListenAddr:         getOrDefault(get, "LISTEN_ADDR", ":8080"),
 		PollEnabled:        getOrDefault(get, "POLL_ENABLED", "true") == "true",

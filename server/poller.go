@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 	"time"
 )
@@ -13,9 +14,12 @@ type Poller struct {
 	idleInterval   time.Duration
 	quota          *QuotaCounter
 	stop           chan struct{}
+	ctx            context.Context
+	cancel         context.CancelFunc
 }
 
 func NewPoller(marvin MarvinAPIClient, store *StateStore, notifier Notifier, activeInterval, idleInterval time.Duration, quota *QuotaCounter) *Poller {
+	ctx, cancel := context.WithCancel(context.Background())
 	return &Poller{
 		marvin:         marvin,
 		store:          store,
@@ -24,6 +28,8 @@ func NewPoller(marvin MarvinAPIClient, store *StateStore, notifier Notifier, act
 		idleInterval:   idleInterval,
 		quota:          quota,
 		stop:           make(chan struct{}),
+		ctx:            ctx,
+		cancel:         cancel,
 	}
 }
 
@@ -32,6 +38,7 @@ func (p *Poller) Start() {
 }
 
 func (p *Poller) Stop() {
+	p.cancel()
 	close(p.stop)
 }
 
@@ -95,7 +102,7 @@ func (p *Poller) poll() {
 
 	state := p.store.Get()
 
-	if item != nil && !state.IsTracking() {
+	if item != nil && !state.IsTracking() && (state.LastStopAt.IsZero() || item.StartedAt >= state.LastStopAt.UnixMilli()) {
 		// Missed start
 		log.Printf("poller: detected missed start for %s", item.TaskID)
 		p.store.Update(func(s *State) {
@@ -105,14 +112,7 @@ func (p *Poller) poll() {
 			s.LiveActivityStartedAt = time.Now()
 		})
 
-		if p.notifier != nil {
-			updatedState := p.store.Get()
-			if updatedState.UpdateToken != "" {
-				p.notifier.UpdateActivity(updatedState.UpdateToken, item.Title, item.StartedAt)
-			} else if updatedState.PushToStartToken != "" {
-				p.notifier.StartActivity(updatedState.PushToStartToken, item.Title, item.StartedAt)
-			}
-		}
+		notifyTrackingStarted(p.ctx, p.store, p.notifier, item.Title, item.StartedAt, DefaultSilentPushGracePeriod)
 	} else if item == nil && state.IsTracking() {
 		// Missed stop
 		log.Printf("poller: detected missed stop")
@@ -121,11 +121,11 @@ func (p *Poller) poll() {
 			s.TrackingTaskID = ""
 			s.TaskTitle = ""
 			s.StartedAt = 0
+			s.Times = nil
 			s.LiveActivityStartedAt = time.Time{}
+			s.UpdateToken = ""
 		})
 
-		if p.notifier != nil && updateToken != "" {
-			p.notifier.EndActivity(updateToken)
-		}
+		notifyTrackingStopped(p.store, p.notifier, updateToken)
 	}
 }

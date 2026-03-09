@@ -39,6 +39,25 @@ func TestTrackHandlerStart(t *testing.T) {
 	}
 }
 
+func TestCalcDuration(t *testing.T) {
+	// Two segments: (200-100) + (400-300) = 200
+	times := []int64{100, 200, 300, 400}
+	if d := calcDuration(times); d != 200 {
+		t.Errorf("expected 200, got %d", d)
+	}
+
+	// Empty
+	if d := calcDuration(nil); d != 0 {
+		t.Errorf("expected 0 for nil, got %d", d)
+	}
+
+	// Odd length (unpaired start is ignored)
+	times = []int64{100, 200, 300}
+	if d := calcDuration(times); d != 100 {
+		t.Errorf("expected 100, got %d", d)
+	}
+}
+
 func TestTrackHandlerStop(t *testing.T) {
 	store := NewStateStore(tempStateFile(t))
 	store.Update(func(s *State) {
@@ -70,6 +89,43 @@ func TestTrackHandlerStop(t *testing.T) {
 	}
 	if notifier.endCalls != 1 {
 		t.Errorf("expected 1 end notification, got %d", notifier.endCalls)
+	}
+}
+
+func TestTrackHandlerStopCallsRetrack(t *testing.T) {
+	store := NewStateStore(tempStateFile(t))
+	store.Update(func(s *State) {
+		s.TrackingTaskID = "task-1"
+		s.TaskTitle = "Running"
+		s.StartedAt = 12345
+		s.Times = []int64{100, 200, 300}
+	})
+	mc := &mockMarvinClient{}
+	th := NewTrackHandler(store, mc, nil)
+
+	body, _ := json.Marshal(stopRequest{})
+	req := httptest.NewRequest(http.MethodPost, "/stop", bytes.NewReader(body))
+	w := httptest.NewRecorder()
+	th.HandleStop(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	if len(mc.retrackCalls) != 1 {
+		t.Fatalf("expected 1 retrack call, got %d", len(mc.retrackCalls))
+	}
+	if mc.retrackCalls[0].TaskID != "task-1" {
+		t.Errorf("expected task-1, got %s", mc.retrackCalls[0].TaskID)
+	}
+	// Should have original 3 times + 1 stop timestamp = 4 entries (even = stopped)
+	if len(mc.retrackCalls[0].Times) != 4 {
+		t.Errorf("expected 4 times entries, got %d", len(mc.retrackCalls[0].Times))
+	}
+
+	state := store.Get()
+	if state.Times != nil {
+		t.Error("expected Times to be cleared after stop")
 	}
 }
 

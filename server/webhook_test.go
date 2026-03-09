@@ -117,6 +117,101 @@ func TestWebhookStartInvalidJSON(t *testing.T) {
 	}
 }
 
+func TestWebhookStartIgnoresStaleTimesArray(t *testing.T) {
+	store := NewStateStore(tempStateFile(t))
+	dedup := NewDedupCache(60 * time.Second)
+	wh := NewWebhookHandler(store, dedup, nil)
+
+	// Even count = tracking stopped (stale webhook)
+	body, _ := json.Marshal(map[string]interface{}{
+		"_id":   "task-1",
+		"title": "Stale Task",
+		"times": []int64{100, 200, 300, 400},
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/webhook/start", bytes.NewReader(body))
+	w := httptest.NewRecorder()
+	wh.HandleStart(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	if store.Get().IsTracking() {
+		t.Error("expected stale webhook with even times count to be ignored")
+	}
+}
+
+func TestWebhookStartAcceptsActiveTimesArray(t *testing.T) {
+	store := NewStateStore(tempStateFile(t))
+	dedup := NewDedupCache(60 * time.Second)
+	wh := NewWebhookHandler(store, dedup, nil)
+
+	// Odd count = tracking active
+	body, _ := json.Marshal(map[string]interface{}{
+		"_id":   "task-1",
+		"title": "Active Task",
+		"times": []int64{100, 200, 300},
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/webhook/start", bytes.NewReader(body))
+	w := httptest.NewRecorder()
+	wh.HandleStart(w, req)
+
+	state := store.Get()
+	if !state.IsTracking() {
+		t.Error("expected active webhook with odd times count to start tracking")
+	}
+	if state.TrackingTaskID != "task-1" {
+		t.Errorf("expected task-1, got %s", state.TrackingTaskID)
+	}
+}
+
+func TestWebhookStartAcceptsEmptyTimesArray(t *testing.T) {
+	store := NewStateStore(tempStateFile(t))
+	dedup := NewDedupCache(60 * time.Second)
+	wh := NewWebhookHandler(store, dedup, nil)
+
+	// No times field — fail open
+	body, _ := json.Marshal(webhookPayload{
+		TaskID:    "task-1",
+		Title:     "No Times",
+		Timestamp: time.Now().UnixMilli(),
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/webhook/start", bytes.NewReader(body))
+	w := httptest.NewRecorder()
+	wh.HandleStart(w, req)
+
+	if !store.Get().IsTracking() {
+		t.Error("expected webhook without times array to be processed normally")
+	}
+}
+
+func TestWebhookStopSetsLastStopAt(t *testing.T) {
+	store := NewStateStore(tempStateFile(t))
+	dedup := NewDedupCache(60 * time.Second)
+	wh := NewWebhookHandler(store, dedup, nil)
+
+	store.Update(func(s *State) {
+		s.TrackingTaskID = "task-1"
+		s.StartedAt = time.Now().UnixMilli()
+	})
+
+	body, _ := json.Marshal(webhookPayload{
+		TaskID:    "task-1",
+		Timestamp: time.Now().UnixMilli(),
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/webhook/stop", bytes.NewReader(body))
+	w := httptest.NewRecorder()
+	wh.HandleStop(w, req)
+
+	state := store.Get()
+	if state.LastStopAt.IsZero() {
+		t.Error("expected LastStopAt to be set after webhook/stop")
+	}
+}
+
 func TestWebhookStartMissingTaskID(t *testing.T) {
 	store := NewStateStore(tempStateFile(t))
 	dedup := NewDedupCache(60 * time.Second)

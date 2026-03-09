@@ -71,6 +71,73 @@ func TestAPNsUpdatePayload(t *testing.T) {
 	}
 }
 
+func TestAPNsSilentPushPayload(t *testing.T) {
+	data, err := marshalSilentPushPayload("Test Task", 1772734813781)
+	if err != nil {
+		t.Fatalf("marshal error: %v", err)
+	}
+
+	var payload map[string]interface{}
+	if err := json.Unmarshal(data, &payload); err != nil {
+		t.Fatalf("unmarshal error: %v", err)
+	}
+
+	aps, ok := payload["aps"].(map[string]interface{})
+	if !ok {
+		t.Fatal("missing aps dictionary")
+	}
+
+	ca, ok := aps["content-available"]
+	if !ok {
+		t.Fatal("missing content-available in aps")
+	}
+	if ca != float64(1) {
+		t.Errorf("expected content-available 1, got %v", ca)
+	}
+
+	if payload["action"] != "refreshStatus" {
+		t.Errorf("expected action refreshStatus, got %v", payload["action"])
+	}
+	if payload["taskTitle"] != "Test Task" {
+		t.Errorf("expected taskTitle Test Task, got %v", payload["taskTitle"])
+	}
+	if payload["startedAt"] != float64(1772734813781) {
+		t.Errorf("expected startedAt 1772734813781, got %v", payload["startedAt"])
+	}
+}
+
+func TestAPNsAlertPushPayload(t *testing.T) {
+	data, err := marshalAlertPushPayload("Tracking Started", "My Task")
+	if err != nil {
+		t.Fatalf("marshal error: %v", err)
+	}
+
+	var payload map[string]interface{}
+	if err := json.Unmarshal(data, &payload); err != nil {
+		t.Fatalf("unmarshal error: %v", err)
+	}
+
+	aps, ok := payload["aps"].(map[string]interface{})
+	if !ok {
+		t.Fatal("missing aps dictionary")
+	}
+
+	alert, ok := aps["alert"].(map[string]interface{})
+	if !ok {
+		t.Fatal("missing alert in aps")
+	}
+	if alert["title"] != "Tracking Started" {
+		t.Errorf("expected title 'Tracking Started', got %v", alert["title"])
+	}
+	if alert["body"] != "My Task" {
+		t.Errorf("expected body 'My Task', got %v", alert["body"])
+	}
+
+	if aps["sound"] != "default" {
+		t.Errorf("expected sound 'default', got %v", aps["sound"])
+	}
+}
+
 func TestAPNsEndPayload(t *testing.T) {
 	data, err := marshalAPNsPayload("end", "", 1772734813781, false)
 	if err != nil {

@@ -38,13 +38,13 @@ func main() {
 			log.Fatalf("APNs init error: %v", err)
 		}
 		notifier = apnsClient
-		log.Printf("APNs client initialized")
+		log.Printf("APNs client initialized (%s)", apnsEnv)
 	} else {
 		log.Printf("APNs not configured, push notifications disabled")
 	}
 
 	// Initialize Marvin client and poller
-	marvin := NewMarvinClient(cfg.MarvinAPIToken)
+	marvin := NewMarvinClient(cfg.MarvinAPIToken, cfg.MarvinFullAccessToken)
 	if cfg.PollEnabled {
 		quota := NewQuotaCounter()
 		poller := NewPoller(marvin, store, notifier, cfg.PollIntervalActive, cfg.PollIntervalIdle, quota)

@@ -11,9 +11,7 @@ final class TrackingViewModel {
     var errorMessage: String?
     var showingTaskPicker = false
 
-    var isOnboarded: Bool {
-        KeychainService.isConfigured
-    }
+    var isOnboarded: Bool = KeychainService.isConfigured
 
     private var apiClient: MarvinAPIClient? {
         guard let token = KeychainService.marvinAPIToken,
@@ -31,6 +29,7 @@ final class TrackingViewModel {
     func saveCredentials(token: String, serverURL: String) {
         KeychainService.marvinAPIToken = token
         KeychainService.serverURL = serverURL
+        isOnboarded = KeychainService.isConfigured
 
         // Also save server URL to App Group for widget extension access
         let defaults = UserDefaults(suiteName: "group.com.strubio.MarvinTimeTracker")
@@ -53,6 +52,11 @@ final class TrackingViewModel {
             if status.tracking, let taskId = status.taskId, let title = status.taskTitle, let startedAtMs = status.startedAt {
                 let startedAt = Date(timeIntervalSince1970: Double(startedAtMs) / 1000.0)
                 trackingState = .tracking(taskId: taskId, title: title, startedAt: startedAt)
+
+                // Start a Live Activity locally if none exists (e.g., push-to-start failed)
+                if Activity<TimeTrackerAttributes>.activities.isEmpty {
+                    await startLiveActivity(taskTitle: title, startedAt: startedAt)
+                }
             } else {
                 trackingState = .idle
             }
@@ -140,9 +144,25 @@ final class TrackingViewModel {
         }
     }
 
+    func observeActivityUpdates() async {
+        for await activity in Activity<TimeTrackerAttributes>.activityUpdates {
+            Task {
+                for await tokenData in activity.pushTokenUpdates {
+                    let token = tokenData.map { String(format: "%02x", $0) }.joined()
+                    try? await pushTokenService?.register(updateToken: token)
+                }
+            }
+        }
+    }
+
+    func registerDeviceToken(_ token: String) async {
+        try? await pushTokenService?.register(deviceToken: token)
+    }
+
     func signOut() {
         KeychainService.marvinAPIToken = nil
         KeychainService.serverURL = nil
+        isOnboarded = false
         trackingState = .idle
         todayTasks = []
     }

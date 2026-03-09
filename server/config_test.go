@@ -9,6 +9,7 @@ import (
 
 func TestLoadConfigDefaults(t *testing.T) {
 	t.Setenv("MARVIN_API_TOKEN", "test-token")
+	t.Setenv("MARVIN_FULL_ACCESS_TOKEN", "test-full-token")
 
 	cfg, err := LoadConfig("")
 	if err != nil {
@@ -46,6 +47,7 @@ func TestLoadConfigMissingToken(t *testing.T) {
 
 func TestLoadConfigCustomValues(t *testing.T) {
 	t.Setenv("MARVIN_API_TOKEN", "tok")
+	t.Setenv("MARVIN_FULL_ACCESS_TOKEN", "full-tok")
 	t.Setenv("LISTEN_ADDR", ":9090")
 	t.Setenv("POLL_INTERVAL_ACTIVE", "10s")
 	t.Setenv("STATE_FILE_PATH", "/tmp/state.json")
@@ -71,6 +73,7 @@ func TestLoadConfigFromFile(t *testing.T) {
 	cfgFile := filepath.Join(dir, "config")
 	content := `# Marvin API
 MARVIN_API_TOKEN = file-token
+MARVIN_FULL_ACCESS_TOKEN = file-full-token
 LISTEN_ADDR = :3000
 POLL_INTERVAL_ACTIVE = 15s
 `
@@ -102,6 +105,7 @@ func TestLoadConfigEnvOverridesFile(t *testing.T) {
 	dir := t.TempDir()
 	cfgFile := filepath.Join(dir, "config")
 	content := `MARVIN_API_TOKEN = file-token
+MARVIN_FULL_ACCESS_TOKEN = file-full-token
 LISTEN_ADDR = :3000
 `
 	if err := os.WriteFile(cfgFile, []byte(content), 0600); err != nil {
@@ -124,8 +128,19 @@ LISTEN_ADDR = :3000
 	}
 }
 
+func TestLoadConfigMissingFullAccessToken(t *testing.T) {
+	t.Setenv("MARVIN_API_TOKEN", "tok")
+	os.Unsetenv("MARVIN_FULL_ACCESS_TOKEN")
+
+	_, err := LoadConfig("")
+	if err == nil {
+		t.Fatal("expected error for missing MARVIN_FULL_ACCESS_TOKEN")
+	}
+}
+
 func TestLoadConfigFileMissing(t *testing.T) {
 	t.Setenv("MARVIN_API_TOKEN", "tok")
+	t.Setenv("MARVIN_FULL_ACCESS_TOKEN", "full-tok")
 
 	cfg, err := LoadConfig("/nonexistent/config")
 	if err != nil {
@@ -140,6 +155,7 @@ func TestLoadConfigFileQuotedValues(t *testing.T) {
 	dir := t.TempDir()
 	cfgFile := filepath.Join(dir, "config")
 	content := `MARVIN_API_TOKEN = "quoted-token"
+MARVIN_FULL_ACCESS_TOKEN = "quoted-full-token"
 LISTEN_ADDR = ':4000'
 `
 	if err := os.WriteFile(cfgFile, []byte(content), 0600); err != nil {

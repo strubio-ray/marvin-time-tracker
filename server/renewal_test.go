@@ -99,3 +99,9 @@ func (rn *recordingNotifier) StartActivity(token, title string, startedAt int64)
 }
 func (rn *recordingNotifier) UpdateActivity(token, title string, startedAt int64) error { return nil }
 func (rn *recordingNotifier) EndActivity(token string) error                            { return nil }
+func (rn *recordingNotifier) SendSilentPush(deviceToken string, taskTitle string, startedAtMs int64) error {
+	return nil
+}
+func (rn *recordingNotifier) SendAlertPush(deviceToken string, title string, body string) error {
+	return nil
+}

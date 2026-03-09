@@ -7,7 +7,7 @@ struct PushTokenService {
         self.serverURL = serverURL
     }
 
-    func register(pushToStartToken: String? = nil, updateToken: String? = nil) async throws {
+    func register(pushToStartToken: String? = nil, updateToken: String? = nil, deviceToken: String? = nil) async throws {
         let url = URL(string: "\(serverURL)/register")!
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
@@ -19,6 +19,9 @@ struct PushTokenService {
         }
         if let updateToken {
             body["updateToken"] = updateToken
+        }
+        if let deviceToken {
+            body["deviceToken"] = deviceToken
         }
 
         request.httpBody = try JSONEncoder().encode(body)

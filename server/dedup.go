@@ -26,9 +26,9 @@ func NewDedupCache(ttl time.Duration) *DedupCache {
 }
 
 // DedupKey creates a composite key that collapses events within a 15-second window.
-func DedupKey(taskID string, timestampMs int64) string {
+func DedupKey(event string, taskID string, timestampMs int64) string {
 	bucket := timestampMs / 15000
-	return taskID + "_" + strconv.FormatInt(bucket, 10)
+	return event + "_" + taskID + "_" + strconv.FormatInt(bucket, 10)
 }
 
 // IsDuplicate returns true if this key was already seen within the TTL window.

@@ -2,15 +2,17 @@ package main
 
 import (
 	"encoding/json"
+	"io"
 	"log"
 	"net/http"
 	"time"
 )
 
 type webhookPayload struct {
-	TaskID    string `json:"taskId"`
-	Title     string `json:"title"`
-	Timestamp int64  `json:"timestamp"`
+	TaskID    string  `json:"_id"`
+	Title     string  `json:"title"`
+	Timestamp int64   `json:"timestamp"`
+	Times     []int64 `json:"times"`
 }
 
 type WebhookHandler struct {
@@ -31,8 +33,15 @@ func (wh *WebhookHandler) HandleStart(w http.ResponseWriter, r *http.Request) {
 	// Acknowledge immediately
 	w.WriteHeader(http.StatusOK)
 
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		log.Printf("webhook/start: failed to read body: %v", err)
+		return
+	}
+	log.Printf("webhook/start: raw body: %s", string(body))
+
 	var payload webhookPayload
-	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+	if err := json.Unmarshal(body, &payload); err != nil {
 		log.Printf("webhook/start: invalid JSON: %v", err)
 		return
 	}
@@ -46,9 +55,17 @@ func (wh *WebhookHandler) HandleStart(w http.ResponseWriter, r *http.Request) {
 		payload.Timestamp = time.Now().UnixMilli()
 	}
 
-	key := DedupKey(payload.TaskID, payload.Timestamp)
+	key := DedupKey("start", payload.TaskID, payload.Timestamp)
 	if wh.dedup.IsDuplicate(key) {
 		log.Printf("webhook/start: dedup hit for %s", payload.TaskID)
+		return
+	}
+
+	// If the webhook includes a times array, check if tracking is actually active.
+	// Marvin uses paired timestamps [start, stop, start, stop, ...].
+	// Odd count = tracking active, even count = tracking stopped (stale webhook).
+	if len(payload.Times) > 0 && len(payload.Times)%2 == 0 {
+		log.Printf("webhook/start: ignoring stale webhook for %s (times has %d entries, tracking not active)", payload.TaskID, len(payload.Times))
 		return
 	}
 
@@ -57,35 +74,28 @@ func (wh *WebhookHandler) HandleStart(w http.ResponseWriter, r *http.Request) {
 		s.TrackingTaskID = payload.TaskID
 		s.TaskTitle = payload.Title
 		s.StartedAt = payload.Timestamp
+		s.Times = payload.Times
 		s.LastWebhookAt = now
 		s.LiveActivityStartedAt = now
 	})
 
 	log.Printf("webhook/start: tracking %s (%s)", payload.TaskID, payload.Title)
 
-	if wh.notifier == nil {
-		return
-	}
-
-	state := wh.store.Get()
-	if state.UpdateToken != "" {
-		if err := wh.notifier.UpdateActivity(state.UpdateToken, payload.Title, payload.Timestamp); err != nil {
-			log.Printf("webhook/start: update activity error: %v", err)
-		}
-	} else if state.PushToStartToken != "" {
-		if err := wh.notifier.StartActivity(state.PushToStartToken, payload.Title, payload.Timestamp); err != nil {
-			log.Printf("webhook/start: start activity error: %v", err)
-		}
-	} else {
-		log.Printf("webhook/start: no push tokens available")
-	}
+	notifyTrackingStarted(r.Context(), wh.store, wh.notifier, payload.Title, payload.Timestamp, DefaultSilentPushGracePeriod)
 }
 
 func (wh *WebhookHandler) HandleStop(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		log.Printf("webhook/stop: failed to read body: %v", err)
+		return
+	}
+	log.Printf("webhook/stop: raw body: %s", string(body))
+
 	var payload webhookPayload
-	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+	if err := json.Unmarshal(body, &payload); err != nil {
 		log.Printf("webhook/stop: invalid JSON: %v", err)
 		return
 	}
@@ -95,7 +105,7 @@ func (wh *WebhookHandler) HandleStop(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if payload.TaskID != "" {
-		key := DedupKey(payload.TaskID, payload.Timestamp)
+		key := DedupKey("stop", payload.TaskID, payload.Timestamp)
 		if wh.dedup.IsDuplicate(key) {
 			log.Printf("webhook/stop: dedup hit for %s", payload.TaskID)
 			return
@@ -105,19 +115,19 @@ func (wh *WebhookHandler) HandleStop(w http.ResponseWriter, r *http.Request) {
 	state := wh.store.Get()
 	updateToken := state.UpdateToken
 
+	now := time.Now()
 	wh.store.Update(func(s *State) {
 		s.TrackingTaskID = ""
 		s.TaskTitle = ""
 		s.StartedAt = 0
-		s.LastWebhookAt = time.Now()
+		s.Times = nil
+		s.LastWebhookAt = now
+		s.LastStopAt = now
 		s.LiveActivityStartedAt = time.Time{}
+		s.UpdateToken = ""
 	})
 
 	log.Printf("webhook/stop: stopped tracking")
 
-	if wh.notifier != nil && updateToken != "" {
-		if err := wh.notifier.EndActivity(updateToken); err != nil {
-			log.Printf("webhook/stop: end activity error: %v", err)
-		}
-	}
+	notifyTrackingStopped(wh.store, wh.notifier, updateToken)
 }

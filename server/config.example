@@ -7,6 +7,9 @@
 
 # Marvin API (required)
 MARVIN_API_TOKEN = your-marvin-api-token-here
+# Full Access Token (required, needed for stopping tracking from the iOS app)
+# Get from https://app.amazingmarvin.com/pre?api
+MARVIN_FULL_ACCESS_TOKEN = your-full-access-token-here
 
 # Apple Push Notification Service
 APNS_KEY_ID = XXXXXXXXXX

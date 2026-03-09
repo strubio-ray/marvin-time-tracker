@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 	"time"
 )
@@ -11,14 +12,19 @@ type Renewal struct {
 	store    *StateStore
 	notifier Notifier
 	stop     chan struct{}
+	ctx      context.Context
+	cancel   context.CancelFunc
 	now      func() time.Time // for testing
 }
 
 func NewRenewal(store *StateStore, notifier Notifier) *Renewal {
+	ctx, cancel := context.WithCancel(context.Background())
 	return &Renewal{
 		store:    store,
 		notifier: notifier,
 		stop:     make(chan struct{}),
+		ctx:      ctx,
+		cancel:   cancel,
 		now:      time.Now,
 	}
 }
@@ -28,6 +34,7 @@ func (rn *Renewal) Start() {
 }
 
 func (rn *Renewal) Stop() {
+	rn.cancel()
 	close(rn.stop)
 }
 
@@ -83,14 +90,5 @@ func (rn *Renewal) check() {
 		s.UpdateToken = "" // Will be re-registered by iOS app
 	})
 
-	updatedState := rn.store.Get()
-	if updatedState.PushToStartToken != "" {
-		if err := rn.notifier.StartActivity(updatedState.PushToStartToken, state.TaskTitle, state.StartedAt); err != nil {
-			log.Printf("renewal: start error: %v", err)
-		} else {
-			log.Printf("renewal: new Live Activity started, preserving original startedAt")
-		}
-	} else {
-		log.Printf("renewal: no pushToStartToken available for restart")
-	}
+	notifyTrackingStarted(rn.ctx, rn.store, rn.notifier, state.TaskTitle, state.StartedAt, DefaultSilentPushGracePeriod)
 }
