@@ -87,6 +87,9 @@ func TestTrackHandlerStop(t *testing.T) {
 	if state.IsTracking() {
 		t.Error("expected not tracking after stop")
 	}
+	if state.LastStoppedTaskID != "task-1" {
+		t.Errorf("expected LastStoppedTaskID=task-1, got %s", state.LastStoppedTaskID)
+	}
 	if notifier.endCalls != 1 {
 		t.Errorf("expected 1 end notification, got %d", notifier.endCalls)
 	}
@@ -162,6 +165,63 @@ func TestTrackHandlerStopNoTask(t *testing.T) {
 
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d", w.Code)
+	}
+}
+
+func TestTrackHandlerStopAPICallOrder(t *testing.T) {
+	store := NewStateStore(tempStateFile(t))
+	store.Update(func(s *State) {
+		s.TrackingTaskID = "task-1"
+		s.TaskTitle = "Running"
+		s.StartedAt = 12345
+		s.Times = []int64{100, 200, 300}
+	})
+	mc := &mockMarvinClient{}
+	th := NewTrackHandler(store, mc, nil)
+
+	body, _ := json.Marshal(stopRequest{})
+	req := httptest.NewRequest(http.MethodPost, "/stop", bytes.NewReader(body))
+	w := httptest.NewRecorder()
+	th.HandleStop(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	// Verify Retrack is called before Track(STOP)
+	if len(mc.allCalls) < 2 {
+		t.Fatalf("expected at least 2 API calls, got %d", len(mc.allCalls))
+	}
+	if mc.allCalls[0] != "retrack" {
+		t.Errorf("expected first call to be retrack, got %s", mc.allCalls[0])
+	}
+	if mc.allCalls[1] != "track:STOP" {
+		t.Errorf("expected second call to be track:STOP, got %s", mc.allCalls[1])
+	}
+}
+
+func TestTrackHandlerStartClearsLastStoppedTaskID(t *testing.T) {
+	store := NewStateStore(tempStateFile(t))
+	store.Update(func(s *State) {
+		s.PushToStartToken = "pts-token"
+		s.LastStoppedTaskID = "old-task"
+	})
+	mc := &mockMarvinClient{}
+	notifier := &mockNotifier{}
+	th := NewTrackHandler(store, mc, notifier)
+
+	body, _ := json.Marshal(startRequest{TaskID: "task-1", Title: "Test Task"})
+	req := httptest.NewRequest(http.MethodPost, "/start", bytes.NewReader(body))
+	w := httptest.NewRecorder()
+	th.HandleStart(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	state := store.Get()
+	if state.LastStoppedTaskID != "" {
+		t.Errorf("expected LastStoppedTaskID to be cleared, got %s", state.LastStoppedTaskID)
 	}
 }
 

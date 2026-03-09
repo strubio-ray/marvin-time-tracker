@@ -66,6 +66,7 @@ func (th *TrackHandler) HandleStart(w http.ResponseWriter, r *http.Request) {
 		s.TaskTitle = req.Title
 		s.StartedAt = startedAt
 		s.LiveActivityStartedAt = now
+		s.LastStoppedTaskID = ""
 	})
 
 	log.Printf("track/start: started %s (%s)", req.TaskID, req.Title)
@@ -92,20 +93,23 @@ func (th *TrackHandler) HandleStop(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Update all three Marvin data layers so the web client sees tracking as stopped.
+	// Order matters: Retrack must come BEFORE Track(STOP) because /api/retrack
+	// may re-set the master tracking state. Track(STOP) must be the final call
+	// that touches the master state so it remains cleared.
+	stopTime := time.Now().UnixMilli()
+	times := append(state.Times, stopTime)
+
+	// Layer 1: Update server-side time tracking data.
+	if err := th.marvin.Retrack(taskID, times); err != nil {
+		log.Printf("track/stop: retrack error (continuing): %v", err)
+	}
+
+	// Layer 2: Clear master tracking state. MUST be after Retrack.
 	if err := th.marvin.Track(taskID, "STOP"); err != nil {
 		log.Printf("track/stop: marvin error: %v", err)
 		http.Error(w, `{"error":"failed to stop tracking"}`, http.StatusBadGateway)
 		return
-	}
-
-	// Update all three Marvin data layers so the web client sees tracking as stopped.
-	// Layer 1 (Track STOP) is done above. Now do Layers 2 and 3.
-	stopTime := time.Now().UnixMilli()
-	times := append(state.Times, stopTime)
-
-	// Layer 2: Update server-side time tracking data.
-	if err := th.marvin.Retrack(taskID, times); err != nil {
-		log.Printf("track/stop: retrack error: %v", err)
 	}
 
 	// Layer 3: Update the CouchDB task document (what the web client reads).
@@ -128,6 +132,7 @@ func (th *TrackHandler) HandleStop(w http.ResponseWriter, r *http.Request) {
 		s.StartedAt = 0
 		s.Times = nil
 		s.LastStopAt = time.Now()
+		s.LastStoppedTaskID = taskID
 		s.LiveActivityStartedAt = time.Time{}
 		s.UpdateToken = ""
 	})

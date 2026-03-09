@@ -61,6 +61,16 @@ func (wh *WebhookHandler) HandleStart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Bounce-back detection: if this webhook re-starts a task we just stopped
+	// from the iOS app, it's the Marvin web client resuming from browser-local
+	// state on page refresh. We can't prevent this client-side behavior, but we
+	// must not re-enter tracking state on our server.
+	state := wh.store.Get()
+	if payload.TaskID == state.LastStoppedTaskID {
+		log.Printf("webhook/start: ignoring bounce-back for %s (Marvin web client resumed from local state)", payload.TaskID)
+		return
+	}
+
 	// If the webhook includes a times array, check if tracking is actually active.
 	// Marvin uses paired timestamps [start, stop, start, stop, ...].
 	// Odd count = tracking active, even count = tracking stopped (stale webhook).
@@ -123,6 +133,7 @@ func (wh *WebhookHandler) HandleStop(w http.ResponseWriter, r *http.Request) {
 		s.Times = nil
 		s.LastWebhookAt = now
 		s.LastStopAt = now
+		s.LastStoppedTaskID = ""
 		s.LiveActivityStartedAt = time.Time{}
 		s.UpdateToken = ""
 	})

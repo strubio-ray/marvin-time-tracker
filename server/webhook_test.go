@@ -212,6 +212,92 @@ func TestWebhookStopSetsLastStopAt(t *testing.T) {
 	}
 }
 
+func TestWebhookStartBounceBackRejected(t *testing.T) {
+	store := NewStateStore(tempStateFile(t))
+	store.Update(func(s *State) {
+		s.LastStoppedTaskID = "task-1"
+		s.LastStopAt = time.Now()
+	})
+	dedup := NewDedupCache(60 * time.Second)
+	wh := NewWebhookHandler(store, dedup, nil)
+
+	body, _ := json.Marshal(map[string]interface{}{
+		"_id":   "task-1",
+		"title": "Bounced Task",
+		"times": []int64{100, 200, 300},
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/webhook/start", bytes.NewReader(body))
+	w := httptest.NewRecorder()
+	wh.HandleStart(w, req)
+
+	if store.Get().IsTracking() {
+		t.Error("expected bounce-back webhook to be rejected")
+	}
+}
+
+func TestWebhookStartBounceBackDifferentTask(t *testing.T) {
+	store := NewStateStore(tempStateFile(t))
+	store.Update(func(s *State) {
+		s.LastStoppedTaskID = "task-1"
+		s.LastStopAt = time.Now()
+	})
+	dedup := NewDedupCache(60 * time.Second)
+	wh := NewWebhookHandler(store, dedup, nil)
+
+	body, _ := json.Marshal(map[string]interface{}{
+		"_id":   "task-2",
+		"title": "Different Task",
+		"times": []int64{100, 200, 300},
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/webhook/start", bytes.NewReader(body))
+	w := httptest.NewRecorder()
+	wh.HandleStart(w, req)
+
+	if !store.Get().IsTracking() {
+		t.Error("expected different task to be accepted despite bounce-back guard")
+	}
+}
+
+func TestWebhookStartBounceBackClearedByWebhookStop(t *testing.T) {
+	store := NewStateStore(tempStateFile(t))
+	store.Update(func(s *State) {
+		s.TrackingTaskID = "task-1"
+		s.StartedAt = time.Now().UnixMilli()
+		s.LastStoppedTaskID = "task-1"
+	})
+	dedup := NewDedupCache(60 * time.Second)
+	wh := NewWebhookHandler(store, dedup, nil)
+
+	// Fire webhook/stop — should clear LastStoppedTaskID
+	stopBody, _ := json.Marshal(webhookPayload{
+		TaskID:    "task-1",
+		Timestamp: time.Now().UnixMilli(),
+	})
+	req := httptest.NewRequest(http.MethodPost, "/webhook/stop", bytes.NewReader(stopBody))
+	w := httptest.NewRecorder()
+	wh.HandleStop(w, req)
+
+	if store.Get().LastStoppedTaskID != "" {
+		t.Error("expected webhook/stop to clear LastStoppedTaskID")
+	}
+
+	// Now fire webhook/start for the same task — should be accepted
+	startBody, _ := json.Marshal(map[string]interface{}{
+		"_id":   "task-1",
+		"title": "Restarted Task",
+		"times": []int64{100, 200, 300},
+	})
+	req = httptest.NewRequest(http.MethodPost, "/webhook/start", bytes.NewReader(startBody))
+	w = httptest.NewRecorder()
+	wh.HandleStart(w, req)
+
+	if !store.Get().IsTracking() {
+		t.Error("expected webhook/start to be accepted after webhook/stop cleared bounce-back guard")
+	}
+}
+
 func TestWebhookStartMissingTaskID(t *testing.T) {
 	store := NewStateStore(tempStateFile(t))
 	dedup := NewDedupCache(60 * time.Second)

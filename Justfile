@@ -30,6 +30,7 @@ deploy-prod: (_deploy "production")
 
 _deploy env: test (build env)
     install -m 755 server/marvin-relay /opt/homebrew/opt/marvin-relay/bin/marvin-relay
+    rm -f /opt/homebrew/var/log/marvin-relay.log
     brew services restart marvin-relay
     @echo "Deployed ({{env}}). Tailing logs (Ctrl-C to stop)..."
     @tail -f /opt/homebrew/var/log/marvin-relay.log

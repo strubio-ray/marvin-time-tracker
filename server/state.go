@@ -20,6 +20,7 @@ type State struct {
 	LastPollAt           time.Time `json:"lastPollAt,omitempty"`
 	LastWebhookAt        time.Time `json:"lastWebhookAt,omitempty"`
 	LastStopAt           time.Time `json:"lastStopAt,omitempty"`
+	LastStoppedTaskID    string    `json:"lastStoppedTaskId,omitempty"`
 }
 
 func (s State) IsTracking() bool {
