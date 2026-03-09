@@ -110,6 +110,23 @@ curl -N http://localhost:8080/events
 # Should receive: event: state, then keepalive comments every 30s
 ```
 
+## Releasing a New Version
+
+### Homebrew
+
+Create a new release tag (e.g., `v0.x.0`) and update the Homebrew formula with the new version and SHA. The binary rebuild automatically includes the latest userscript via `go:embed` — no extra steps needed for the userscript specifically.
+
+### Tampermonkey auto-update
+
+Two things must be true for Tampermonkey to pick up a new version:
+
+1. **`@version` must be bumped** in `marvin-relay-tracker.user.js`. Tampermonkey compares versions numerically — if the version doesn't increase, the update is ignored.
+2. **`EXTERNAL_URL` must be set** on the relay server so that `@updateURL` and `@downloadURL` resolve to real URLs (not the `__RELAY_URL__` placeholder).
+
+Once a user upgrades the server (e.g., `brew upgrade marvin-relay`) and restarts it, Tampermonkey detects the higher `@version` on its next periodic check and prompts the user to update.
+
+Users who installed the script *before* auto-update support (pre-0.3.0) won't have `@updateURL` in their installed copy. They need a one-time manual reinstall from the server URL to get auto-update metadata — after that, future updates are automatic.
+
 ## Troubleshooting
 
 - **Panel shows "Disconnected"** — Check that the relay server is running and the URL is correct in settings
