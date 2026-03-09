@@ -12,7 +12,7 @@ import (
 func TestWebhookStart(t *testing.T) {
 	store := NewStateStore(tempStateFile(t))
 	dedup := NewDedupCache(60 * time.Second)
-	wh := NewWebhookHandler(store, dedup, nil, nil)
+	wh := NewWebhookHandler(store, dedup, nil, nil, nil)
 
 	body, _ := json.Marshal(webhookPayload{
 		TaskID:    "task-1",
@@ -40,7 +40,7 @@ func TestWebhookStart(t *testing.T) {
 func TestWebhookStop(t *testing.T) {
 	store := NewStateStore(tempStateFile(t))
 	dedup := NewDedupCache(60 * time.Second)
-	wh := NewWebhookHandler(store, dedup, nil, nil)
+	wh := NewWebhookHandler(store, dedup, nil, nil, nil)
 
 	// Start first
 	store.Update(func(s *State) {
@@ -71,7 +71,7 @@ func TestWebhookStop(t *testing.T) {
 func TestWebhookStartDedup(t *testing.T) {
 	store := NewStateStore(tempStateFile(t))
 	dedup := NewDedupCache(60 * time.Second)
-	wh := NewWebhookHandler(store, dedup, nil, nil)
+	wh := NewWebhookHandler(store, dedup, nil, nil, nil)
 
 	body, _ := json.Marshal(webhookPayload{
 		TaskID:    "task-1",
@@ -101,7 +101,7 @@ func TestWebhookStartDedup(t *testing.T) {
 func TestWebhookStartInvalidJSON(t *testing.T) {
 	store := NewStateStore(tempStateFile(t))
 	dedup := NewDedupCache(60 * time.Second)
-	wh := NewWebhookHandler(store, dedup, nil, nil)
+	wh := NewWebhookHandler(store, dedup, nil, nil, nil)
 
 	req := httptest.NewRequest(http.MethodPost, "/webhook/start", bytes.NewReader([]byte("not json")))
 	w := httptest.NewRecorder()
@@ -120,7 +120,7 @@ func TestWebhookStartInvalidJSON(t *testing.T) {
 func TestWebhookStartIgnoresStaleTimesArray(t *testing.T) {
 	store := NewStateStore(tempStateFile(t))
 	dedup := NewDedupCache(60 * time.Second)
-	wh := NewWebhookHandler(store, dedup, nil, nil)
+	wh := NewWebhookHandler(store, dedup, nil, nil, nil)
 
 	// Even count = tracking stopped (stale webhook)
 	body, _ := json.Marshal(map[string]interface{}{
@@ -144,7 +144,7 @@ func TestWebhookStartIgnoresStaleTimesArray(t *testing.T) {
 func TestWebhookStartAcceptsActiveTimesArray(t *testing.T) {
 	store := NewStateStore(tempStateFile(t))
 	dedup := NewDedupCache(60 * time.Second)
-	wh := NewWebhookHandler(store, dedup, nil, nil)
+	wh := NewWebhookHandler(store, dedup, nil, nil, nil)
 
 	// Odd count = tracking active
 	body, _ := json.Marshal(map[string]interface{}{
@@ -169,7 +169,7 @@ func TestWebhookStartAcceptsActiveTimesArray(t *testing.T) {
 func TestWebhookStartAcceptsEmptyTimesArray(t *testing.T) {
 	store := NewStateStore(tempStateFile(t))
 	dedup := NewDedupCache(60 * time.Second)
-	wh := NewWebhookHandler(store, dedup, nil, nil)
+	wh := NewWebhookHandler(store, dedup, nil, nil, nil)
 
 	// No times field — fail open
 	body, _ := json.Marshal(webhookPayload{
@@ -190,7 +190,7 @@ func TestWebhookStartAcceptsEmptyTimesArray(t *testing.T) {
 func TestWebhookStopSetsLastStopAt(t *testing.T) {
 	store := NewStateStore(tempStateFile(t))
 	dedup := NewDedupCache(60 * time.Second)
-	wh := NewWebhookHandler(store, dedup, nil, nil)
+	wh := NewWebhookHandler(store, dedup, nil, nil, nil)
 
 	store.Update(func(s *State) {
 		s.TrackingTaskID = "task-1"
@@ -219,7 +219,7 @@ func TestWebhookStartBounceBackRejected(t *testing.T) {
 		s.LastStopAt = time.Now()
 	})
 	dedup := NewDedupCache(60 * time.Second)
-	wh := NewWebhookHandler(store, dedup, nil, nil)
+	wh := NewWebhookHandler(store, dedup, nil, nil, nil)
 
 	body, _ := json.Marshal(map[string]interface{}{
 		"_id":   "task-1",
@@ -243,7 +243,7 @@ func TestWebhookStartBounceBackDifferentTask(t *testing.T) {
 		s.LastStopAt = time.Now()
 	})
 	dedup := NewDedupCache(60 * time.Second)
-	wh := NewWebhookHandler(store, dedup, nil, nil)
+	wh := NewWebhookHandler(store, dedup, nil, nil, nil)
 
 	body, _ := json.Marshal(map[string]interface{}{
 		"_id":   "task-2",
@@ -268,7 +268,7 @@ func TestWebhookStartBounceBackClearedByWebhookStop(t *testing.T) {
 		s.LastStoppedTaskID = "task-1"
 	})
 	dedup := NewDedupCache(60 * time.Second)
-	wh := NewWebhookHandler(store, dedup, nil, nil)
+	wh := NewWebhookHandler(store, dedup, nil, nil, nil)
 
 	// Fire webhook/stop — should clear LastStoppedTaskID
 	stopBody, _ := json.Marshal(webhookPayload{
@@ -301,7 +301,7 @@ func TestWebhookStartBounceBackClearedByWebhookStop(t *testing.T) {
 func TestWebhookStartMissingTaskID(t *testing.T) {
 	store := NewStateStore(tempStateFile(t))
 	dedup := NewDedupCache(60 * time.Second)
-	wh := NewWebhookHandler(store, dedup, nil, nil)
+	wh := NewWebhookHandler(store, dedup, nil, nil, nil)
 
 	body, _ := json.Marshal(webhookPayload{Title: "No ID"})
 

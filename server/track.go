@@ -22,14 +22,16 @@ type TrackHandler struct {
 	marvin   MarvinAPIClient
 	notifier Notifier
 	broker   *Broker
+	history  *HistoryStore
 }
 
-func NewTrackHandler(store *StateStore, marvin MarvinAPIClient, notifier Notifier, broker *Broker) *TrackHandler {
+func NewTrackHandler(store *StateStore, marvin MarvinAPIClient, notifier Notifier, broker *Broker, history *HistoryStore) *TrackHandler {
 	return &TrackHandler{
 		store:    store,
 		marvin:   marvin,
 		notifier: notifier,
 		broker:   broker,
+		history:  history,
 	}
 }
 
@@ -143,6 +145,16 @@ func (th *TrackHandler) HandleStop(w http.ResponseWriter, r *http.Request) {
 	log.Printf("track/stop: stopped %s", taskID)
 
 	notifyTrackingStopped(th.store, th.notifier, th.broker, updateToken, stoppedTaskID)
+
+	if th.history != nil && state.StartedAt > 0 {
+		th.history.Add(SessionRecord{
+			TaskID:    taskID,
+			Title:     state.TaskTitle,
+			StartedAt: state.StartedAt,
+			StoppedAt: stopTime,
+			Duration:  stopTime - state.StartedAt,
+		})
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})

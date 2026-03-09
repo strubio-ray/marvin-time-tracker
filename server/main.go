@@ -28,6 +28,11 @@ func main() {
 		log.Fatalf("state load error: %v", err)
 	}
 
+	history := NewHistoryStore(cfg.HistoryFilePath)
+	if err := history.Load(); err != nil {
+		log.Fatalf("history load error: %v", err)
+	}
+
 	dedup := NewDedupCache(60 * time.Second)
 
 	// Initialize APNs notifier if configured
@@ -61,7 +66,7 @@ func main() {
 	renewal.Start()
 	log.Printf("renewal monitor started")
 
-	srv := NewServer(store, dedup, notifier, WithBroker(broker), WithMarvinClient(marvin))
+	srv := NewServer(store, dedup, notifier, WithBroker(broker), WithMarvinClient(marvin), WithHistory(history))
 
 	log.Printf("listening on %s", cfg.ListenAddr)
 	if err := http.ListenAndServe(cfg.ListenAddr, srv); err != nil {

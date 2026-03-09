@@ -16,6 +16,7 @@ type Config struct {
 	MarvinAPIToken          string
 	MarvinFullAccessToken   string
 	StateFilePath      string
+	HistoryFilePath    string
 	ListenAddr         string
 	PollEnabled        bool
 	PollIntervalActive time.Duration
@@ -55,6 +56,7 @@ func LoadConfig(configPath string) (*Config, error) {
 		MarvinAPIToken:          token,
 		MarvinFullAccessToken:   fullAccessToken,
 		StateFilePath:      getOrDefault(get, "STATE_FILE_PATH", "./state.json"),
+		HistoryFilePath:    getOrDefault(get, "HISTORY_FILE_PATH", "./history.json"),
 		ListenAddr:         getOrDefault(get, "LISTEN_ADDR", ":8080"),
 		PollEnabled:        getOrDefault(get, "POLL_ENABLED", "true") == "true",
 		PollIntervalActive: parseDuration(get("POLL_INTERVAL_ACTIVE"), 30*time.Second),

@@ -15,7 +15,7 @@ func TestTrackHandlerStart(t *testing.T) {
 	})
 	mc := &mockMarvinClient{}
 	notifier := &mockNotifier{}
-	th := NewTrackHandler(store, mc, notifier, nil)
+	th := NewTrackHandler(store, mc, notifier, nil, nil)
 
 	body, _ := json.Marshal(startRequest{TaskID: "task-1", Title: "Test Task"})
 	req := httptest.NewRequest(http.MethodPost, "/start", bytes.NewReader(body))
@@ -68,7 +68,7 @@ func TestTrackHandlerStop(t *testing.T) {
 	})
 	mc := &mockMarvinClient{}
 	notifier := &mockNotifier{}
-	th := NewTrackHandler(store, mc, notifier, nil)
+	th := NewTrackHandler(store, mc, notifier, nil, nil)
 
 	body, _ := json.Marshal(stopRequest{})
 	req := httptest.NewRequest(http.MethodPost, "/stop", bytes.NewReader(body))
@@ -104,7 +104,7 @@ func TestTrackHandlerStopCallsRetrack(t *testing.T) {
 		s.Times = []int64{100, 200, 300}
 	})
 	mc := &mockMarvinClient{}
-	th := NewTrackHandler(store, mc, nil, nil)
+	th := NewTrackHandler(store, mc, nil, nil, nil)
 
 	body, _ := json.Marshal(stopRequest{})
 	req := httptest.NewRequest(http.MethodPost, "/stop", bytes.NewReader(body))
@@ -138,7 +138,7 @@ func TestTrackHandlerStopWithTaskID(t *testing.T) {
 		s.TrackingTaskID = "task-1"
 	})
 	mc := &mockMarvinClient{}
-	th := NewTrackHandler(store, mc, nil, nil)
+	th := NewTrackHandler(store, mc, nil, nil, nil)
 
 	body, _ := json.Marshal(stopRequest{TaskID: "task-1"})
 	req := httptest.NewRequest(http.MethodPost, "/stop", bytes.NewReader(body))
@@ -156,7 +156,7 @@ func TestTrackHandlerStopWithTaskID(t *testing.T) {
 func TestTrackHandlerStopNoTask(t *testing.T) {
 	store := NewStateStore(tempStateFile(t))
 	mc := &mockMarvinClient{}
-	th := NewTrackHandler(store, mc, nil, nil)
+	th := NewTrackHandler(store, mc, nil, nil, nil)
 
 	body, _ := json.Marshal(stopRequest{})
 	req := httptest.NewRequest(http.MethodPost, "/stop", bytes.NewReader(body))
@@ -177,7 +177,7 @@ func TestTrackHandlerStopAPICallOrder(t *testing.T) {
 		s.Times = []int64{100, 200, 300}
 	})
 	mc := &mockMarvinClient{}
-	th := NewTrackHandler(store, mc, nil, nil)
+	th := NewTrackHandler(store, mc, nil, nil, nil)
 
 	body, _ := json.Marshal(stopRequest{})
 	req := httptest.NewRequest(http.MethodPost, "/stop", bytes.NewReader(body))
@@ -208,7 +208,7 @@ func TestTrackHandlerStartClearsLastStoppedTaskID(t *testing.T) {
 	})
 	mc := &mockMarvinClient{}
 	notifier := &mockNotifier{}
-	th := NewTrackHandler(store, mc, notifier, nil)
+	th := NewTrackHandler(store, mc, notifier, nil, nil)
 
 	body, _ := json.Marshal(startRequest{TaskID: "task-1", Title: "Test Task"})
 	req := httptest.NewRequest(http.MethodPost, "/start", bytes.NewReader(body))
@@ -228,7 +228,7 @@ func TestTrackHandlerStartClearsLastStoppedTaskID(t *testing.T) {
 func TestTrackHandlerStartMissingTaskID(t *testing.T) {
 	store := NewStateStore(tempStateFile(t))
 	mc := &mockMarvinClient{}
-	th := NewTrackHandler(store, mc, nil, nil)
+	th := NewTrackHandler(store, mc, nil, nil, nil)
 
 	body, _ := json.Marshal(startRequest{Title: "No ID"})
 	req := httptest.NewRequest(http.MethodPost, "/start", bytes.NewReader(body))

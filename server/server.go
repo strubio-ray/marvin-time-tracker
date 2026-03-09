@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"net/http"
+	"strconv"
 
 	"github.com/rs/cors"
 )
@@ -18,7 +19,7 @@ func NewServer(store *StateStore, dedup *DedupCache, notifier Notifier, opts ...
 		o(so)
 	}
 
-	wh := NewWebhookHandler(store, dedup, notifier, so.broker)
+	wh := NewWebhookHandler(store, dedup, notifier, so.broker, so.history)
 	rh := NewRegisterHandler(store, notifier, so.broker)
 
 	mux := http.NewServeMux()
@@ -27,12 +28,16 @@ func NewServer(store *StateStore, dedup *DedupCache, notifier Notifier, opts ...
 	mux.HandleFunc("POST /webhook/stop", wh.HandleStop)
 	mux.HandleFunc("POST /register", rh.Handle)
 
+	if so.history != nil {
+		mux.HandleFunc("GET /history", historyHandler(so.history))
+	}
+
 	if so.broker != nil {
 		mux.HandleFunc("GET /events", sseHandler(store, so.broker))
 	}
 
 	if so.marvin != nil {
-		th := NewTrackHandler(store, so.marvin, notifier, so.broker)
+		th := NewTrackHandler(store, so.marvin, notifier, so.broker, so.history)
 		mux.HandleFunc("POST /start", th.HandleStart)
 		mux.HandleFunc("POST /stop", th.HandleStop)
 	}
@@ -51,8 +56,9 @@ func NewServer(store *StateStore, dedup *DedupCache, notifier Notifier, opts ...
 }
 
 type serverOptions struct {
-	marvin MarvinAPIClient
-	broker *Broker
+	marvin  MarvinAPIClient
+	broker  *Broker
+	history *HistoryStore
 }
 
 type ServerOption func(*serverOptions)
@@ -69,8 +75,32 @@ func WithMarvinClient(mc MarvinAPIClient) ServerOption {
 	}
 }
 
+func WithHistory(h *HistoryStore) ServerOption {
+	return func(so *serverOptions) {
+		so.history = h
+	}
+}
+
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s.handler.ServeHTTP(w, r)
+}
+
+func historyHandler(history *HistoryStore) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		limit := 10
+		if v := r.URL.Query().Get("limit"); v != "" {
+			if n, err := strconv.Atoi(v); err == nil && n > 0 {
+				limit = n
+			}
+		}
+		if limit > 200 {
+			limit = 200
+		}
+
+		sessions := history.Recent(limit)
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(sessions)
+	}
 }
 
 func statusHandler(store *StateStore) http.HandlerFunc {

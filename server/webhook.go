@@ -20,14 +20,16 @@ type WebhookHandler struct {
 	dedup    *DedupCache
 	notifier Notifier
 	broker   *Broker
+	history  *HistoryStore
 }
 
-func NewWebhookHandler(store *StateStore, dedup *DedupCache, notifier Notifier, broker *Broker) *WebhookHandler {
+func NewWebhookHandler(store *StateStore, dedup *DedupCache, notifier Notifier, broker *Broker, history *HistoryStore) *WebhookHandler {
 	return &WebhookHandler{
 		store:    store,
 		dedup:    dedup,
 		notifier: notifier,
 		broker:   broker,
+		history:  history,
 	}
 }
 
@@ -127,6 +129,8 @@ func (wh *WebhookHandler) HandleStop(w http.ResponseWriter, r *http.Request) {
 	state := wh.store.Get()
 	updateToken := state.UpdateToken
 	stoppedTaskID := state.TrackingTaskID
+	startedAt := state.StartedAt
+	taskTitle := state.TaskTitle
 
 	now := time.Now()
 	wh.store.Update(func(s *State) {
@@ -144,4 +148,15 @@ func (wh *WebhookHandler) HandleStop(w http.ResponseWriter, r *http.Request) {
 	log.Printf("webhook/stop: stopped tracking")
 
 	notifyTrackingStopped(wh.store, wh.notifier, wh.broker, updateToken, stoppedTaskID)
+
+	if wh.history != nil && startedAt > 0 {
+		now := time.Now().UnixMilli()
+		wh.history.Add(SessionRecord{
+			TaskID:    stoppedTaskID,
+			Title:     taskTitle,
+			StartedAt: startedAt,
+			StoppedAt: now,
+			Duration:  now - startedAt,
+		})
+	}
 }
