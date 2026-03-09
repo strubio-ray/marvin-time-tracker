@@ -1,11 +1,15 @@
 
 # Go
 server/marvin-relay
+server/server
 
 # iOS
 ios/*.xcodeproj
 ios/DerivedData/
 ios/build/
+
+# Claude Code
+.claude/
 
 # Environment and secrets
 .env
