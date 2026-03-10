@@ -34,11 +34,11 @@ func NewServer(store *StateStore, dedup *DedupCache, notifier Notifier, opts ...
 	mux.HandleFunc("GET /userscript/marvin-relay-tracker.user.js", userscriptHandler(so.externalURL))
 
 	if so.history != nil {
-		mux.HandleFunc("GET /history", historyHandler(so.history))
+		mux.HandleFunc("GET /history", auth(historyHandler(so.history)))
 	}
 
 	if so.broker != nil {
-		mux.HandleFunc("GET /events", sseHandler(store, so.broker))
+		mux.HandleFunc("GET /events", auth(sseHandler(store, so.broker)))
 	}
 
 	if so.marvin != nil {

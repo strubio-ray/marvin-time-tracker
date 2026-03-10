@@ -109,7 +109,7 @@ func TestServerCORSHeaders(t *testing.T) {
 }
 
 func TestServerAuthProtectsEndpoints(t *testing.T) {
-	srv := newTestServer(t, WithAPIKey("test-secret"))
+	srv := newTestServer(t, WithAPIKey("test-secret"), WithBroker(NewBroker()), WithHistory(NewHistoryStore(tempStateFile(t))))
 
 	endpoints := []struct {
 		method string
@@ -117,6 +117,8 @@ func TestServerAuthProtectsEndpoints(t *testing.T) {
 	}{
 		{http.MethodGet, "/status"},
 		{http.MethodPost, "/register"},
+		{http.MethodGet, "/history"},
+		{http.MethodGet, "/events"},
 	}
 
 	for _, ep := range endpoints {
