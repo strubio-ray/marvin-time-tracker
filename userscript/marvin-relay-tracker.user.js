@@ -237,17 +237,20 @@
 
   const SSE = (() => {
     let sseRequest = null;
+    let reader = null;
     let reconnectTimer = null;
-    let refreshTimer = null;
+    let heartbeatTimer = null;
     let reconnectAttempt = 0;
     let intentionalDisconnect = false;
+    let lastDataTime = 0;
 
     const BASE_DELAY = 1000;
     const MAX_DELAY = 30000;
-    const REFRESH_INTERVAL = 30 * 60 * 1000; // 30 minutes — reconnect to clear responseText buffer
+    const HEARTBEAT_TIMEOUT = 90000; // 90s — 4.5x the 20s server keepalive
 
     function getReconnectDelay() {
-      return Math.min(BASE_DELAY * Math.pow(2, reconnectAttempt), MAX_DELAY);
+      const base = Math.min(BASE_DELAY * Math.pow(2, reconnectAttempt), MAX_DELAY);
+      return base + Math.random() * 1000;
     }
 
     function scheduleReconnect() {
@@ -286,13 +289,69 @@
     }
 
     function closeSSE() {
-      if (refreshTimer) {
-        clearTimeout(refreshTimer);
-        refreshTimer = null;
+      if (heartbeatTimer) {
+        clearInterval(heartbeatTimer);
+        heartbeatTimer = null;
+      }
+      if (reader) {
+        reader.cancel();
+        reader = null;
       }
       if (sseRequest && sseRequest.abort) {
         sseRequest.abort();
         sseRequest = null;
+      }
+    }
+
+    function parseSSEChunk(chunk, buffer, currentEvent) {
+      buffer += chunk;
+      const lines = buffer.split('\n');
+      buffer = lines.pop(); // keep incomplete last line
+
+      for (const line of lines) {
+        if (line.startsWith('event: ')) {
+          currentEvent.type = line.substring(7);
+        } else if (line.startsWith('data: ')) {
+          currentEvent.data = line.substring(6);
+        } else if (line === '') {
+          // Empty line = end of event
+          if (currentEvent.data) {
+            handleSSEEvent(currentEvent.type, currentEvent.data);
+          }
+          currentEvent.type = 'message';
+          currentEvent.data = '';
+        }
+        // Lines starting with ':' are comments (keepalive) — ignore
+      }
+
+      return buffer;
+    }
+
+    async function readLoop(streamReader, decoder) {
+      let buffer = '';
+      const currentEvent = { type: 'message', data: '' };
+
+      try {
+        while (true) {
+          const { done, value } = await streamReader.read();
+          if (done) break;
+
+          lastDataTime = Date.now();
+          const chunk = decoder.decode(value, { stream: true });
+          buffer = parseSSEChunk(chunk, buffer, currentEvent);
+        }
+        // Stream ended normally — reconnect
+        if (!intentionalDisconnect) {
+          if (State.isConnected()) {
+            Toast.show('Connection lost, reconnecting...', 'warning');
+          }
+          scheduleReconnect();
+        }
+      } catch (err) {
+        if (err.name === 'AbortError') return; // intentional disconnect
+        if (!intentionalDisconnect) {
+          scheduleReconnect();
+        }
       }
     }
 
@@ -324,12 +383,6 @@
       const url = await Config.getRelayUrl();
       const apiKey = await Config.getApiKey();
 
-      // SSE parser state
-      let lastIndex = 0;
-      let buffer = '';
-      let currentEvent = { type: 'message', data: '' };
-      let connected = false;
-
       const headers = {
         'Accept': 'text/event-stream',
         ...(apiKey ? { 'Authorization': `Bearer ${apiKey}` } : {}),
@@ -340,54 +393,24 @@
           method: 'GET',
           url: `${url}/events`,
           headers,
-          responseType: 'text',
-          onprogress(response) {
-            if (!connected) {
-              connected = true;
-              const wasReconnecting = reconnectAttempt > 0;
-              State.setConnectionState('connected');
-              reconnectAttempt = 0;
-              if (wasReconnecting) {
-                Toast.show('Reconnected to server', 'success', 3000);
-              }
+          responseType: 'stream',
+          onloadstart(response) {
+            const wasReconnecting = reconnectAttempt > 0;
+            State.setConnectionState('connected');
+            reconnectAttempt = 0;
+            if (wasReconnecting) {
+              Toast.show('Reconnected to server', 'success', 3000);
             }
 
-            const newData = response.responseText.substring(lastIndex);
-            lastIndex = response.responseText.length;
-            buffer += newData;
-
-            const lines = buffer.split('\n');
-            buffer = lines.pop(); // keep incomplete last line
-
-            for (const line of lines) {
-              if (line.startsWith('event: ')) {
-                currentEvent.type = line.substring(7);
-              } else if (line.startsWith('data: ')) {
-                currentEvent.data = line.substring(6);
-              } else if (line === '') {
-                // Empty line = end of event
-                if (currentEvent.data) {
-                  handleSSEEvent(currentEvent.type, currentEvent.data);
-                }
-                currentEvent = { type: 'message', data: '' };
-              }
-              // Lines starting with ':' are comments (keepalive) — ignore
-            }
-          },
-          onload() {
-            // Connection closed by server
-            sseRequest = null;
-            if (!intentionalDisconnect) {
-              if (State.isConnected()) {
-                Toast.show('Connection lost, reconnecting...', 'warning');
-              }
-              scheduleReconnect();
-            }
+            lastDataTime = Date.now();
+            reader = response.response.getReader();
+            const decoder = new TextDecoder();
+            readLoop(reader, decoder);
           },
           onerror(err) {
             sseRequest = null;
             if (intentionalDisconnect) return;
-            if (reconnectAttempt === 0 && !connected) {
+            if (reconnectAttempt === 0) {
               Toast.show(`SSE connection failed: ${err.error || 'Network error'}`, 'error');
             } else if (State.isConnected()) {
               Toast.show('Connection lost, reconnecting...', 'warning');
@@ -406,14 +429,13 @@
         return;
       }
 
-      // Schedule periodic refresh to clear growing responseText buffer
-      refreshTimer = setTimeout(() => {
-        refreshTimer = null;
-        if (!intentionalDisconnect && State.isConnected()) {
+      // Start heartbeat monitor
+      heartbeatTimer = setInterval(() => {
+        if (lastDataTime > 0 && Date.now() - lastDataTime > HEARTBEAT_TIMEOUT) {
           closeSSE();
-          connectInternal();
+          scheduleReconnect();
         }
-      }, REFRESH_INTERVAL);
+      }, HEARTBEAT_TIMEOUT / 2);
     }
 
     return {
