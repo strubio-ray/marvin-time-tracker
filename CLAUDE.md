@@ -8,32 +8,33 @@ Marvin Time Tracker: a minimal iOS app + Go relay server that surfaces a live ti
 
 ## Build & Test Commands
 
+All commands use the Justfile (`just --list` to see all recipes).
+
 ### Go Server
 ```bash
 just build          # Build server binary to server/marvin-relay
 just test           # Run all server tests
 just run            # Build and run server
 just clean          # Remove built binary
+just deploy-dev     # Test + build + install to Homebrew + restart (development)
+just deploy-prod    # Same as above but with APNS_ENV=production
 
-# Run a single test
+# Run a single test (no just recipe for this)
 go test ./server/... -run TestFunctionName
-
-# Cross-compile for deployment
-CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o server/marvin-relay ./server
 ```
 
 ### iOS App
 ```bash
-cd ios
-xcodegen generate                    # Generate .xcodeproj from project.yml
-open MarvinTimeTracker.xcodeproj     # Open in Xcode
+just ios-deploy      # Build, install, launch on device via Fastlane
+just ios-testflight  # Build and upload to TestFlight
+```
 
-# Fastlane (run from ios/ directory)
+For Fastlane-only operations that don't have Justfile recipes:
+```bash
+cd ios
 bundle exec fastlane setup           # Generate project + sync dev signing
-bundle exec fastlane deploy          # Build, install, launch on device
 bundle exec fastlane sync_certs      # Sync certificates via match
 bundle exec fastlane build           # Release build only (no upload)
-bundle exec fastlane testflight_release  # Build + upload to TestFlight
 ```
 
 The iOS project uses **XcodeGen** (`ios/project.yml`) — there is no checked-in `.xcodeproj`. Regenerate after changing targets, sources, or settings.
@@ -59,6 +60,8 @@ Key files and their roles:
 - **`notifier.go`** — `Notifier` interface abstracting push notification delivery (enables test mocks)
 - **`config.go`** — Environment variable loading with defaults
 - **`marvin.go`** — Marvin API client (`MarvinAPIClient` interface)
+- **`auth.go`** — `requireAPIKey` middleware for Bearer token auth on app-facing endpoints
+- **`tasks.go`** — `GET /tasks` handler proxying Marvin's `/todayItems` endpoint
 
 State machine: `IDLE <-> TRACKING`, persisted to JSON file. Webhooks drive state transitions.
 
@@ -67,7 +70,7 @@ State machine: `IDLE <-> TRACKING`, persisted to JSON file. Webhooks drive state
 SwiftUI app targeting iOS 18+ / watchOS 11+. Swift 6.0. Uses `@Observable` (no TCA/coordinators).
 
 - **`MarvinTimeTracker/`** — Main app target
-  - `Views/` — OnboardingView (token entry), TimerView (main screen), TaskPickerSheet
+  - `Views/` — OnboardingView (API key entry), TimerView (main screen), TaskPickerSheet
   - `ViewModels/TrackingViewModel.swift` — `@Observable`, manages API calls + Live Activity lifecycle
   - `Services/` — MarvinAPIClient, KeychainService (native Security framework), PushTokenService
   - `Models/` — TrackingState, MarvinTask
@@ -88,8 +91,12 @@ iOS App → POST /start|/stop → Marvin API (via Go server proxy)
 
 Server configured via config file and/or env vars (see `server/config.example`):
 - `MARVIN_API_TOKEN` (required)
+- `MARVIN_FULL_ACCESS_TOKEN` (required)
+- `API_KEY` (optional, but strongly recommended — protects app-facing endpoints)
 - `APNS_KEY_ID`, `APNS_TEAM_ID`, `APNS_KEY_P8_PATH`, `APNS_BUNDLE_ID`
 - `STATE_FILE_PATH`, `LISTEN_ADDR`
+
+The iOS app authenticates with the server using `API_KEY` via `Authorization: Bearer` header. The Marvin API tokens never leave the server.
 
 iOS signing requires:
 - `DEVELOPMENT_TEAM` — Apple Developer Team ID (used in `project.yml`)
@@ -105,3 +112,21 @@ iOS signing requires:
 - Fastlane sets `SKIP_COG=1` to bypass cocogitto commit hooks for its auto-generated commits
 - Code signing uses Fastlane Match (manual style) — profiles are referenced by name in `project.yml`
 - Bundle ID: `com.strubio.MarvinTimeTracker`
+- iOS app uses `marvin-tracker://` URL scheme for deep links (e.g., Stop button in Live Activity)
+- App-facing endpoints (`/status`, `/register`, `/start`, `/stop`, `/tasks`) require `Authorization: Bearer <API_KEY>` when `API_KEY` is configured
+- Webhook and public endpoints (`/webhook/*`, `/events`, `/history`, `/userscript/*`) are unauthenticated
+
+## Release Pipeline
+
+**Every server or iOS change requires a new git tag to reach Homebrew installations.** See [README.md § Releasing a New Version](README.md#releasing-a-new-version) for the full workflow.
+
+Quick reference:
+```bash
+git tag -l 'v*' --sort=-v:refname | head -5   # Check existing tags
+git tag v<next>                                 # Create new tag
+git push origin v<next>                         # Triggers bump-homebrew.yml
+```
+
+Then on the deployment machine: `brew update && brew upgrade marvin-relay && brew services restart marvin-relay`
+
+**If you skip the tag, the Homebrew formula won't update and the server won't pick up new changes.** The `bump-homebrew.yml` GitHub Action only fires on tag push (`v*`).

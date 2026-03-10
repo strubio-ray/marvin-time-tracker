@@ -4,9 +4,9 @@ import Security
 struct KeychainService {
     private static let service = "com.strubio.MarvinTimeTracker"
 
-    static var marvinAPIToken: String? {
-        get { getString(account: "marvinAPIToken") }
-        set { setString(newValue, account: "marvinAPIToken") }
+    static var apiKey: String? {
+        get { getString(account: "apiKey") }
+        set { setString(newValue, account: "apiKey") }
     }
 
     static var serverURL: String? {
@@ -15,7 +15,7 @@ struct KeychainService {
     }
 
     static var isConfigured: Bool {
-        marvinAPIToken != nil && serverURL != nil
+        apiKey != nil && serverURL != nil
     }
 
     // MARK: - Private

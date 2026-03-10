@@ -1,29 +1,18 @@
 import Foundation
 
 struct MarvinAPIClient {
-    private let token: String
+    private let apiKey: String
     private let serverURL: String
-    private let marvinBaseURL = "https://serv.amazingmarvin.com/api"
 
-    init(token: String, serverURL: String) {
-        self.token = token
+    init(apiKey: String, serverURL: String) {
+        self.apiKey = apiKey
         self.serverURL = serverURL
     }
 
-    // MARK: - Direct Marvin API calls (read-only)
-
-    func validateToken() async throws -> Bool {
-        var request = URLRequest(url: URL(string: "\(marvinBaseURL)/me")!)
-        request.setValue(token, forHTTPHeaderField: "X-API-Token")
-
-        let (_, response) = try await URLSession.shared.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse else { return false }
-        return httpResponse.statusCode == 200
-    }
+    // MARK: - Server API calls
 
     func todayItems() async throws -> [MarvinTask] {
-        var request = URLRequest(url: URL(string: "\(marvinBaseURL)/todayItems")!)
-        request.setValue(token, forHTTPHeaderField: "X-API-Token")
+        let request = authorizedRequest(url: URL(string: "\(serverURL)/tasks")!, method: "GET")
 
         let (data, response) = try await URLSession.shared.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse,
@@ -34,12 +23,8 @@ struct MarvinAPIClient {
         return (try? JSONDecoder().decode([MarvinTask].self, from: data)) ?? []
     }
 
-    // MARK: - Go server calls (mutations)
-
     func startTracking(taskId: String, title: String) async throws {
-        let url = URL(string: "\(serverURL)/start")!
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
+        var request = authorizedRequest(url: URL(string: "\(serverURL)/start")!, method: "POST")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONEncoder().encode(["taskId": taskId, "title": title])
 
@@ -51,9 +36,7 @@ struct MarvinAPIClient {
     }
 
     func stopTracking(taskId: String? = nil) async throws {
-        let url = URL(string: "\(serverURL)/stop")!
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
+        var request = authorizedRequest(url: URL(string: "\(serverURL)/stop")!, method: "POST")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
         if let taskId {
@@ -70,9 +53,18 @@ struct MarvinAPIClient {
     }
 
     func fetchStatus() async throws -> ServerStatus {
-        let url = URL(string: "\(serverURL)/status")!
-        let (data, _) = try await URLSession.shared.data(from: url)
+        let request = authorizedRequest(url: URL(string: "\(serverURL)/status")!, method: "GET")
+        let (data, _) = try await URLSession.shared.data(for: request)
         return try JSONDecoder().decode(ServerStatus.self, from: data)
+    }
+
+    // MARK: - Private
+
+    private func authorizedRequest(url: URL, method: String) -> URLRequest {
+        var request = URLRequest(url: url)
+        request.httpMethod = method
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        return request
     }
 
     enum APIError: Error {

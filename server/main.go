@@ -59,7 +59,11 @@ func main() {
 	renewal.Start()
 	log.Printf("renewal monitor started")
 
-	srv := NewServer(store, dedup, notifier, WithBroker(broker), WithMarvinClient(marvin), WithHistory(history), WithExternalURL(cfg.ExternalURL))
+	if cfg.APIKey == "" {
+		log.Printf("WARNING: API_KEY not set, app endpoints are unprotected")
+	}
+
+	srv := NewServer(store, dedup, notifier, WithBroker(broker), WithMarvinClient(marvin), WithHistory(history), WithExternalURL(cfg.ExternalURL), WithAPIKey(cfg.APIKey))
 
 	log.Printf("listening on %s", cfg.ListenAddr)
 	if err := http.ListenAndServe(cfg.ListenAddr, srv); err != nil {

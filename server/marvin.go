@@ -16,6 +16,7 @@ type MarvinAPIClient interface {
 	Track(taskID string, action string) error
 	Retrack(taskID string, times []int64) error
 	UpdateDoc(taskID string, setters []DocSetter) error
+	TodayItems() ([]byte, error)
 }
 
 // DocSetter represents a field update for POST /api/doc/update.
@@ -99,6 +100,33 @@ func (mc *marvinClient) UpdateDoc(taskID string, setters []DocSetter) error {
 	}
 
 	return nil
+}
+
+// TodayItems fetches today's tasks from Marvin via GET /todayItems.
+// Returns the raw JSON response bytes for passthrough to clients.
+func (mc *marvinClient) TodayItems() ([]byte, error) {
+	req, err := http.NewRequest(http.MethodGet, mc.baseURL+"/todayItems", nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("X-Full-Access-Token", mc.fullAccessToken)
+
+	resp, err := mc.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("marvin todayItems error: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("marvin todayItems read error: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("marvin todayItems returned %d: %s", resp.StatusCode, string(body))
+	}
+
+	return body, nil
 }
 
 // Retrack updates a task's times array in the Marvin document store.

@@ -1,5 +1,4 @@
 import ActivityKit
-import AppIntents
 import SwiftUI
 import WidgetKit
 
@@ -21,7 +20,7 @@ struct TimeTrackerLiveActivity: Widget {
                         .font(.headline)
                 }
                 DynamicIslandExpandedRegion(.bottom) {
-                    Button(intent: StopTrackingIntent()) {
+                    Link(destination: URL(string: "marvin-tracker://stop")!) {
                         Label("Stop", systemImage: "stop.fill")
                             .font(.headline)
                             .frame(maxWidth: .infinity)
@@ -73,7 +72,7 @@ struct TimeTrackerLiveActivity: Widget {
 
                 Spacer()
 
-                Button(intent: StopTrackingIntent()) {
+                Link(destination: URL(string: "marvin-tracker://stop")!) {
                     Image(systemName: "stop.fill")
                         .font(.title2)
                 }

@@ -22,22 +22,22 @@ Go Relay Server ──> APNs ──> iPhone Live Activity
 
 ## Quick Start
 
+All commands use the [Justfile](https://github.com/casey/just) (`just --list` to see all recipes).
+
 ### Server
 
 ```bash
-cp .env.example .env
-# Edit .env with your tokens and keys
-make build
-make run
+cp server/config.example server/config
+# Edit server/config with your tokens and keys
+just build
+just run
 ```
 
 ### iOS App
 
 ```bash
-cd ios
-bundle install
-bundle exec fastlane setup
-open MarvinTimeTracker.xcodeproj
+cd ios && bundle install && cd ..
+just ios-deploy    # Build, install, launch on device
 ```
 
 ## Releasing a New Version

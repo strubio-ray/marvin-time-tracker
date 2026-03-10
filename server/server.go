@@ -22,11 +22,15 @@ func NewServer(store *StateStore, dedup *DedupCache, notifier Notifier, opts ...
 	wh := NewWebhookHandler(store, dedup, notifier, so.broker, so.history)
 	rh := NewRegisterHandler(store, notifier, so.broker)
 
+	auth := func(h http.HandlerFunc) http.HandlerFunc {
+		return requireAPIKey(so.apiKey, h)
+	}
+
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /status", statusHandler(store))
+	mux.HandleFunc("GET /status", auth(statusHandler(store)))
 	mux.HandleFunc("POST /webhook/start", wh.HandleStart)
 	mux.HandleFunc("POST /webhook/stop", wh.HandleStop)
-	mux.HandleFunc("POST /register", rh.Handle)
+	mux.HandleFunc("POST /register", auth(rh.Handle))
 	mux.HandleFunc("GET /userscript/marvin-relay-tracker.user.js", userscriptHandler(so.externalURL))
 
 	if so.history != nil {
@@ -39,14 +43,15 @@ func NewServer(store *StateStore, dedup *DedupCache, notifier Notifier, opts ...
 
 	if so.marvin != nil {
 		th := NewTrackHandler(store, so.marvin, notifier, so.broker, so.history)
-		mux.HandleFunc("POST /start", th.HandleStart)
-		mux.HandleFunc("POST /stop", th.HandleStop)
+		mux.HandleFunc("POST /start", auth(th.HandleStart))
+		mux.HandleFunc("POST /stop", auth(th.HandleStop))
+		mux.HandleFunc("GET /tasks", auth(tasksHandler(so.marvin)))
 	}
 
 	c := cors.New(cors.Options{
 		AllowedOrigins:     []string{"*"},
 		AllowedMethods:     []string{"GET", "POST", "PUT", "OPTIONS"},
-		AllowedHeaders:     []string{"Content-Type"},
+		AllowedHeaders:     []string{"Content-Type", "Authorization"},
 		OptionsSuccessStatus: 200,
 	})
 
@@ -61,6 +66,7 @@ type serverOptions struct {
 	broker      *Broker
 	history     *HistoryStore
 	externalURL string
+	apiKey      string
 }
 
 type ServerOption func(*serverOptions)
@@ -86,6 +92,12 @@ func WithHistory(h *HistoryStore) ServerOption {
 func WithExternalURL(url string) ServerOption {
 	return func(so *serverOptions) {
 		so.externalURL = url
+	}
+}
+
+func WithAPIKey(key string) ServerOption {
+	return func(so *serverOptions) {
+		so.apiKey = key
 	}
 }
 

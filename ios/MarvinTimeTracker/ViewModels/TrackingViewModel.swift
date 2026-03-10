@@ -14,20 +14,21 @@ final class TrackingViewModel {
     var isOnboarded: Bool = KeychainService.isConfigured
 
     private var apiClient: MarvinAPIClient? {
-        guard let token = KeychainService.marvinAPIToken,
+        guard let apiKey = KeychainService.apiKey,
               let serverURL = KeychainService.serverURL else { return nil }
-        return MarvinAPIClient(token: token, serverURL: serverURL)
+        return MarvinAPIClient(apiKey: apiKey, serverURL: serverURL)
     }
 
     private var pushTokenService: PushTokenService? {
-        guard let serverURL = KeychainService.serverURL else { return nil }
-        return PushTokenService(serverURL: serverURL)
+        guard let serverURL = KeychainService.serverURL,
+              let apiKey = KeychainService.apiKey else { return nil }
+        return PushTokenService(serverURL: serverURL, apiKey: apiKey)
     }
 
     // MARK: - Onboarding
 
-    func saveCredentials(token: String, serverURL: String) {
-        KeychainService.marvinAPIToken = token
+    func saveCredentials(apiKey: String, serverURL: String) {
+        KeychainService.apiKey = apiKey
         KeychainService.serverURL = serverURL
         isOnboarded = KeychainService.isConfigured
 
@@ -36,10 +37,9 @@ final class TrackingViewModel {
         defaults?.set(serverURL, forKey: "serverURL")
     }
 
-    func validateToken(_ token: String) async -> Bool {
-        guard let serverURL = KeychainService.serverURL else { return false }
-        let client = MarvinAPIClient(token: token, serverURL: serverURL)
-        return (try? await client.validateToken()) ?? false
+    func validateServer() async -> Bool {
+        guard let client = apiClient else { return false }
+        return (try? await client.fetchStatus()) != nil
     }
 
     // MARK: - Tracking
@@ -160,7 +160,7 @@ final class TrackingViewModel {
     }
 
     func signOut() {
-        KeychainService.marvinAPIToken = nil
+        KeychainService.apiKey = nil
         KeychainService.serverURL = nil
         isOnboarded = false
         trackingState = .idle

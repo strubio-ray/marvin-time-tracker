@@ -125,7 +125,7 @@ A default config file is installed to `/opt/homebrew/etc/marvin-relay/config`.
 ```bash
 git clone https://github.com/strubio-ray/marvin-time-tracker.git
 cd marvin-time-tracker
-make build
+just build
 cp server/config.example server/config
 ```
 
@@ -136,9 +136,11 @@ Edit the config file with values from previous steps:
 | Variable | Source |
 |---|---|
 | `MARVIN_API_TOKEN` | API token from Step 4 |
+| `MARVIN_FULL_ACCESS_TOKEN` | Full Access Token from Step 4 |
 | `APNS_KEY_ID` | Key ID from Step 3 (10 characters) |
 | `APNS_TEAM_ID` | Team ID from [Membership](https://developer.apple.com/account/#/membership) |
 | `APNS_KEY_P8_PATH` | Path to the .p8 file downloaded in Step 3 |
+| `API_KEY` | Generate with `openssl rand -hex 32` — used by the iOS app to authenticate with the server |
 
 Copy the .p8 file to the appropriate directory:
 - **Homebrew**: `/opt/homebrew/etc/marvin-relay/`
@@ -151,7 +153,7 @@ Copy the .p8 file to the appropriate directory:
 brew services start marvin-relay
 
 # From source
-make run
+just run
 ```
 
 ## Step 7: Verify Server
@@ -234,12 +236,12 @@ bundle install
 ### Build, install, and launch on device
 
 ```bash
-bundle exec fastlane deploy
+just ios-deploy
 ```
 
 This generates the Xcode project, syncs signing via match, builds, installs on the connected iPhone, and launches the app.
 
-1. Enter server URL and Marvin API token in the app
+1. Enter server URL and API key in the app
 2. Grant notification permissions
 
 ## Step 11: TestFlight Release (optional)
@@ -247,8 +249,7 @@ This generates the Xcode project, syncs signing via match, builds, installs on t
 To distribute via TestFlight instead of sideloading:
 
 ```bash
-cd ios
-bundle exec fastlane testflight_release
+just ios-testflight
 ```
 
 This lane:

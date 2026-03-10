@@ -18,6 +18,7 @@ type Config struct {
 	HistoryFilePath    string
 	ListenAddr         string
 	ExternalURL        string
+	APIKey             string
 }
 
 // LoadConfig builds a Config by layering (lowest to highest priority):
@@ -56,6 +57,7 @@ func LoadConfig(configPath string) (*Config, error) {
 		HistoryFilePath:    getOrDefault(get, "HISTORY_FILE_PATH", "./history.json"),
 		ListenAddr:         getOrDefault(get, "LISTEN_ADDR", ":8080"),
 		ExternalURL:        get("EXTERNAL_URL"),
+		APIKey:             get("API_KEY"),
 	}
 
 	return cfg, nil

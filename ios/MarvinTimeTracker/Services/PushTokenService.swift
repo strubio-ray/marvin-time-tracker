@@ -2,9 +2,11 @@ import Foundation
 
 struct PushTokenService {
     private let serverURL: String
+    private let apiKey: String
 
-    init(serverURL: String) {
+    init(serverURL: String, apiKey: String) {
         self.serverURL = serverURL
+        self.apiKey = apiKey
     }
 
     func register(pushToStartToken: String? = nil, updateToken: String? = nil, deviceToken: String? = nil) async throws {
@@ -12,6 +14,7 @@ struct PushTokenService {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
 
         var body: [String: String] = [:]
         if let pushToStartToken {

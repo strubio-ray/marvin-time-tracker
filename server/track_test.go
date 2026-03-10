@@ -3,16 +3,19 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 )
 
 type mockMarvinClient struct {
-	trackCalls     []struct{ TaskID, Action string }
-	retrackCalls   []struct{ TaskID string; Times []int64 }
-	updateDocCalls []struct{ TaskID string; Setters []DocSetter }
-	allCalls       []string
+	trackCalls       []struct{ TaskID, Action string }
+	retrackCalls     []struct{ TaskID string; Times []int64 }
+	updateDocCalls   []struct{ TaskID string; Setters []DocSetter }
+	allCalls         []string
+	todayItemsResult []byte
+	todayItemsErr    bool
 }
 
 func (m *mockMarvinClient) Track(taskID, action string) error {
@@ -31,6 +34,13 @@ func (m *mockMarvinClient) UpdateDoc(taskID string, setters []DocSetter) error {
 	m.updateDocCalls = append(m.updateDocCalls, struct{ TaskID string; Setters []DocSetter }{taskID, setters})
 	m.allCalls = append(m.allCalls, "updateDoc")
 	return nil
+}
+
+func (m *mockMarvinClient) TodayItems() ([]byte, error) {
+	if m.todayItemsErr {
+		return nil, fmt.Errorf("marvin error")
+	}
+	return m.todayItemsResult, nil
 }
 
 func TestTrackHandlerStart(t *testing.T) {

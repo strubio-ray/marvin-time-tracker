@@ -4,7 +4,7 @@ struct OnboardingView: View {
     @Bindable var viewModel: TrackingViewModel
 
     @State private var serverURL = ""
-    @State private var apiToken = ""
+    @State private var apiKey = ""
     @State private var isValidating = false
     @State private var validationError: String?
 
@@ -18,13 +18,13 @@ struct OnboardingView: View {
                         .textInputAutocapitalization(.never)
                         .keyboardType(.URL)
 
-                    SecureField("Marvin API Token", text: $apiToken)
+                    SecureField("API Key", text: $apiKey)
                         .autocorrectionDisabled()
                         .textInputAutocapitalization(.never)
                 } header: {
                     Text("Configuration")
                 } footer: {
-                    Text("Enter your Go relay server URL and Marvin API token.")
+                    Text("Enter your relay server URL and API key.")
                 }
 
                 if let error = validationError {
@@ -46,7 +46,7 @@ struct OnboardingView: View {
                             }
                         }
                     }
-                    .disabled(serverURL.isEmpty || apiToken.isEmpty || isValidating)
+                    .disabled(serverURL.isEmpty || apiKey.isEmpty || isValidating)
                 }
             }
             .navigationTitle("Setup")
@@ -62,12 +62,11 @@ struct OnboardingView: View {
             ? String(serverURL.dropLast())
             : serverURL
 
-        // Save server URL first so validateToken can use it
-        viewModel.saveCredentials(token: apiToken, serverURL: normalizedURL)
+        viewModel.saveCredentials(apiKey: apiKey, serverURL: normalizedURL)
 
-        let isValid = await viewModel.validateToken(apiToken)
+        let isValid = await viewModel.validateServer()
         if !isValid {
-            validationError = "Invalid token or server unreachable"
+            validationError = "Could not connect to server. Check URL and API key."
             viewModel.signOut()
         }
     }

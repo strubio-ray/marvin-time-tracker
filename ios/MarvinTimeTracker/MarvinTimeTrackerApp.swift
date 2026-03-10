@@ -14,6 +14,11 @@ struct MarvinTimeTrackerApp: App {
                     OnboardingView(viewModel: viewModel)
                 }
             }
+            .onOpenURL { url in
+                if url.host == "stop" {
+                    Task { await viewModel.stopTracking() }
+                }
+            }
             .task {
                 setupAppDelegateCallbacks()
             }
