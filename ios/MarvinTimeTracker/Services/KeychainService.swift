@@ -1,6 +1,26 @@
 import Foundation
 import Security
 
+protocol KeychainServiceProtocol {
+    var apiKey: String? { get set }
+    var serverURL: String? { get set }
+    var isConfigured: Bool { get }
+}
+
+final class KeychainStore: KeychainServiceProtocol {
+    var apiKey: String? {
+        get { KeychainService.apiKey }
+        set { KeychainService.apiKey = newValue }
+    }
+
+    var serverURL: String? {
+        get { KeychainService.serverURL }
+        set { KeychainService.serverURL = newValue }
+    }
+
+    var isConfigured: Bool { KeychainService.isConfigured }
+}
+
 struct KeychainService {
     private static let service = "com.strubio.MarvinTimeTracker"
 

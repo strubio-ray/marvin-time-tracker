@@ -1,6 +1,10 @@
 import Foundation
 
-struct PushTokenService {
+protocol PushTokenServiceProtocol: Sendable {
+    func register(pushToStartToken: String?, updateToken: String?, deviceToken: String?) async throws
+}
+
+struct PushTokenService: PushTokenServiceProtocol {
     private let serverURL: String
     private let apiKey: String
 
