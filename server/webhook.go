@@ -90,14 +90,9 @@ func (wh *WebhookHandler) HandleStart(w http.ResponseWriter, r *http.Request) {
 
 	log.Printf("webhook/start: tracking %s (%s)", payload.TaskID, payload.Title)
 
-	state := wh.store.Get()
-	tokens := NotifyTokens{
-		UpdateToken:      state.UpdateToken,
-		PushToStartToken: state.PushToStartToken,
-		DeviceToken:      state.DeviceToken,
-	}
-	if tokens.PushToStartToken != "" {
-		wh.store.Update(func(s *State) { s.PushToStartToken = "" })
+	tokens, err := wh.store.ConsumeNotifyTokens()
+	if err != nil {
+		log.Printf("webhook/start: failed to consume tokens: %v", err)
 	}
 	notifyTrackingStarted(r.Context(), tokens, wh.notifier, wh.broker, payload.Title, payload.Timestamp, DefaultSilentPushGracePeriod, func() string {
 		s := wh.store.Get()
@@ -140,10 +135,12 @@ func (wh *WebhookHandler) HandleStop(w http.ResponseWriter, r *http.Request) {
 	}
 
 	now := time.Now()
-	wh.store.Update(func(s *State) {
+	prev, err := wh.store.ClearTracking(now, func(s *State) {
 		s.LastWebhookAt = now
 	})
-	prev, _ := wh.store.ClearTracking(now)
+	if err != nil {
+		log.Printf("webhook/stop: failed to clear tracking: %v", err)
+	}
 	updateToken := prev.UpdateToken
 	stoppedTaskID := prev.TrackingTaskID
 

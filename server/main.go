@@ -92,6 +92,7 @@ func main() {
 	log.Printf("shutting down...")
 
 	renewal.Stop()
+	webhookLimiter.Stop()
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()

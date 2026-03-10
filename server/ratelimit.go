@@ -19,6 +19,7 @@ type rateLimiterStore struct {
 	limiters map[string]*ipLimiter
 	rate     rate.Limit
 	burst    int
+	stop     chan struct{}
 }
 
 func newRateLimiterStore(r rate.Limit, burst int) *rateLimiterStore {
@@ -26,9 +27,19 @@ func newRateLimiterStore(r rate.Limit, burst int) *rateLimiterStore {
 		limiters: make(map[string]*ipLimiter),
 		rate:     r,
 		burst:    burst,
+		stop:     make(chan struct{}),
 	}
 	go store.cleanup()
 	return store
+}
+
+func (s *rateLimiterStore) Stop() {
+	select {
+	case <-s.stop:
+		return // already stopped
+	default:
+		close(s.stop)
+	}
 }
 
 func (s *rateLimiterStore) getLimiter(ip string) *rate.Limiter {
@@ -48,14 +59,19 @@ func (s *rateLimiterStore) getLimiter(ip string) *rate.Limiter {
 func (s *rateLimiterStore) cleanup() {
 	ticker := time.NewTicker(5 * time.Minute)
 	defer ticker.Stop()
-	for range ticker.C {
-		s.mu.Lock()
-		for ip, entry := range s.limiters {
-			if time.Since(entry.lastSeen) > 5*time.Minute {
-				delete(s.limiters, ip)
+	for {
+		select {
+		case <-s.stop:
+			return
+		case <-ticker.C:
+			s.mu.Lock()
+			for ip, entry := range s.limiters {
+				if time.Since(entry.lastSeen) > 5*time.Minute {
+					delete(s.limiters, ip)
+				}
 			}
+			s.mu.Unlock()
 		}
-		s.mu.Unlock()
 	}
 }
 

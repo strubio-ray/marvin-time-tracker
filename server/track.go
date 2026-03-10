@@ -76,14 +76,9 @@ func (th *TrackHandler) HandleStart(w http.ResponseWriter, r *http.Request) {
 
 	log.Printf("track/start: started %s (%s)", req.TaskID, req.Title)
 
-	state := th.store.Get()
-	tokens := NotifyTokens{
-		UpdateToken:      state.UpdateToken,
-		PushToStartToken: state.PushToStartToken,
-		DeviceToken:      state.DeviceToken,
-	}
-	if tokens.PushToStartToken != "" {
-		th.store.Update(func(s *State) { s.PushToStartToken = "" })
+	tokens, err := th.store.ConsumeNotifyTokens()
+	if err != nil {
+		log.Printf("track/start: failed to consume tokens: %v", err)
 	}
 	notifyTrackingStarted(r.Context(), tokens, th.notifier, th.broker, req.Title, startedAt, DefaultSilentPushGracePeriod, func() string {
 		s := th.store.Get()
@@ -146,7 +141,10 @@ func (th *TrackHandler) HandleStop(w http.ResponseWriter, r *http.Request) {
 		log.Printf("track/stop: doc/update error: %v", err)
 	}
 
-	prev, _ := th.store.ClearTracking(time.Now())
+	prev, err := th.store.ClearTracking(time.Now())
+	if err != nil {
+		log.Printf("track/stop: failed to clear tracking: %v", err)
+	}
 	updateToken := prev.UpdateToken
 
 	log.Printf("track/stop: stopped %s", taskID)

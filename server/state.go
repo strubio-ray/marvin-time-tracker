@@ -81,7 +81,8 @@ func (ss *StateStore) Update(fn func(*State)) error {
 // ClearTracking zeroes tracking fields and sets LastStopAt.
 // Returns the state snapshot taken before clearing, for callers that need
 // the previous update token or task ID.
-func (ss *StateStore) ClearTracking(now time.Time) (State, error) {
+// Optional extra mutators are applied after clearing (e.g. to set LastWebhookAt).
+func (ss *StateStore) ClearTracking(now time.Time, extras ...func(*State)) (State, error) {
 	ss.mu.Lock()
 	defer ss.mu.Unlock()
 	prev := ss.state
@@ -92,7 +93,29 @@ func (ss *StateStore) ClearTracking(now time.Time) (State, error) {
 	ss.state.LastStopAt = now
 	ss.state.LiveActivityStartedAt = time.Time{}
 	ss.state.UpdateToken = ""
+	for _, fn := range extras {
+		fn(&ss.state)
+	}
 	return prev, ss.saveLocked()
+}
+
+// ConsumeNotifyTokens returns the current push tokens and atomically clears
+// the single-use PushToStartToken if present.
+func (ss *StateStore) ConsumeNotifyTokens() (NotifyTokens, error) {
+	ss.mu.Lock()
+	defer ss.mu.Unlock()
+	tokens := NotifyTokens{
+		UpdateToken:      ss.state.UpdateToken,
+		PushToStartToken: ss.state.PushToStartToken,
+		DeviceToken:      ss.state.DeviceToken,
+	}
+	if ss.state.PushToStartToken != "" {
+		ss.state.PushToStartToken = ""
+		if err := ss.saveLocked(); err != nil {
+			return tokens, err
+		}
+	}
+	return tokens, nil
 }
 
 func (ss *StateStore) Clear() error {
