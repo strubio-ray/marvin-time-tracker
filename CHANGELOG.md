@@ -2,6 +2,15 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## [v2.2.0](https://github.com/strubio-ray/marvin-time-tracker/compare/bcab769ef27f8660311f35596e0585289e9c3d0f..v2.2.0) - 2026-03-10
+#### Features
+- (**sse**) add ResponseController with rolling write deadlines - ([bcab769](https://github.com/strubio-ray/marvin-time-tracker/commit/bcab769ef27f8660311f35596e0585289e9c3d0f)) - Steven
+- (**userscript**) switch SSE to streaming mode with heartbeat monitoring - ([e7dc925](https://github.com/strubio-ray/marvin-time-tracker/commit/e7dc925bf4ab09847ed3cf98bd1cad11bc5efc52)) - Steven
+#### Bug Fixes
+- (**build**) use POSIX-compatible sed/grep in bump-userscript recipe - ([75e2684](https://github.com/strubio-ray/marvin-time-tracker/commit/75e2684d6399663d0deab2686c257ac117525d5d)) - Steven
+
+- - -
+
 ## [v2.1.0](https://github.com/strubio-ray/marvin-time-tracker/compare/23eb669e73e023648ef27e41aed839a84065f5f9..v2.1.0) - 2026-03-10
 #### Features
 - (**build**) add bump-userscript recipe for semver version bumps - ([6c5fbc2](https://github.com/strubio-ray/marvin-time-tracker/commit/6c5fbc2d5efdc4903febfb3ba9d2dfe3003ade4e)) - Steven
