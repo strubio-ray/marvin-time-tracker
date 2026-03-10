@@ -39,8 +39,8 @@ func NewServer(store *StateStore, dedup *DedupCache, notifier Notifier, opts ...
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /status", auth(statusHandler(store)))
-	mux.HandleFunc("POST /webhook/start", wh.HandleStart)
-	mux.HandleFunc("POST /webhook/stop", wh.HandleStop)
+	mux.HandleFunc("POST /webhook/start", rateLimitMiddleware(wh.HandleStart))
+	mux.HandleFunc("POST /webhook/stop", rateLimitMiddleware(wh.HandleStop))
 	mux.HandleFunc("POST /register", auth(rh.Handle))
 	mux.HandleFunc("GET /userscript/marvin-relay-tracker.user.js", userscriptHandler(so.externalURL))
 
