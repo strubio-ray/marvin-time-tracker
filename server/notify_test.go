@@ -27,8 +27,8 @@ func TestNotifyUsesUpdateToken(t *testing.T) {
 	}
 	// Alert fallback should NOT fire when Live Activity was sent
 	time.Sleep(50 * time.Millisecond)
-	if n.alertPushCalls != 0 {
-		t.Errorf("expected 0 alert push calls, got %d", n.alertPushCalls)
+	if n.getAlertPushCalls() != 0 {
+		t.Errorf("expected 0 alert push calls, got %d", n.getAlertPushCalls())
 	}
 }
 
@@ -67,14 +67,14 @@ func TestNotifySilentPushThenAlert(t *testing.T) {
 	// Wait for grace period to fire alert
 	time.Sleep(50 * time.Millisecond)
 
-	if n.alertPushCalls != 1 {
-		t.Errorf("expected 1 alert push call, got %d", n.alertPushCalls)
+	if n.getAlertPushCalls() != 1 {
+		t.Errorf("expected 1 alert push call, got %d", n.getAlertPushCalls())
 	}
-	if n.lastAlertTitle != "Tracking Started" {
-		t.Errorf("expected alert title 'Tracking Started', got %s", n.lastAlertTitle)
+	if n.getAlertTitle() != "Tracking Started" {
+		t.Errorf("expected alert title 'Tracking Started', got %s", n.getAlertTitle())
 	}
-	if n.lastAlertBody != "My Task" {
-		t.Errorf("expected alert body 'My Task', got %s", n.lastAlertBody)
+	if n.getAlertBody() != "My Task" {
+		t.Errorf("expected alert body 'My Task', got %s", n.getAlertBody())
 	}
 }
 
@@ -96,8 +96,8 @@ func TestNotifySilentPushSucceeds(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	// Alert should NOT have fired
-	if n.alertPushCalls != 0 {
-		t.Errorf("expected 0 alert push calls (silent push succeeded), got %d", n.alertPushCalls)
+	if n.getAlertPushCalls() != 0 {
+		t.Errorf("expected 0 alert push calls (silent push succeeded), got %d", n.getAlertPushCalls())
 	}
 }
 
@@ -112,8 +112,8 @@ func TestNotifyTrackingStopsDuringGrace(t *testing.T) {
 
 	time.Sleep(100 * time.Millisecond)
 
-	if n.alertPushCalls != 0 {
-		t.Errorf("expected 0 alert push calls (tracking stopped), got %d", n.alertPushCalls)
+	if n.getAlertPushCalls() != 0 {
+		t.Errorf("expected 0 alert push calls (tracking stopped), got %d", n.getAlertPushCalls())
 	}
 }
 
@@ -151,8 +151,8 @@ func TestNotifyContextCancellation(t *testing.T) {
 	cancel()
 	time.Sleep(50 * time.Millisecond)
 
-	if n.alertPushCalls != 0 {
-		t.Errorf("expected 0 alert push calls after cancellation, got %d", n.alertPushCalls)
+	if n.getAlertPushCalls() != 0 {
+		t.Errorf("expected 0 alert push calls after cancellation, got %d", n.getAlertPushCalls())
 	}
 }
 
