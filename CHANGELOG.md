@@ -2,6 +2,13 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## [v2.1.0](https://github.com/strubio-ray/marvin-time-tracker/compare/23eb669e73e023648ef27e41aed839a84065f5f9..v2.1.0) - 2026-03-10
+#### Features
+- (**build**) add bump-userscript recipe for semver version bumps - ([6c5fbc2](https://github.com/strubio-ray/marvin-time-tracker/commit/6c5fbc2d5efdc4903febfb3ba9d2dfe3003ade4e)) - Steven
+- (**userscript**) add API key authentication and fetch-based SSE - ([23eb669](https://github.com/strubio-ray/marvin-time-tracker/commit/23eb669e73e023648ef27e41aed839a84065f5f9)) - Steven
+
+- - -
+
 ## [v2.0.0](https://github.com/strubio-ray/marvin-time-tracker/compare/70d2645feda72bb7eec4e1588844f5b46c134a35..v2.0.0) - 2026-03-10
 #### Features
 - (**ios**) add test target with Swift Testing framework - ([3fa45a2](https://github.com/strubio-ray/marvin-time-tracker/commit/3fa45a297c9bf2e4cfa9b2ccddc9cddbcf0bb07a)) - Steven
