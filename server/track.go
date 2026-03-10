@@ -71,7 +71,6 @@ func (th *TrackHandler) HandleStart(w http.ResponseWriter, r *http.Request) {
 		s.StartedAt = startedAt
 		s.Times = []int64{startedAt}
 		s.LiveActivityStartedAt = now
-		s.LastStoppedTaskID = ""
 	})
 
 	log.Printf("track/start: started %s (%s)", req.TaskID, req.Title)
@@ -138,7 +137,6 @@ func (th *TrackHandler) HandleStop(w http.ResponseWriter, r *http.Request) {
 		s.StartedAt = 0
 		s.Times = nil
 		s.LastStopAt = time.Now()
-		s.LastStoppedTaskID = taskID
 		s.LiveActivityStartedAt = time.Time{}
 		s.UpdateToken = ""
 	})
