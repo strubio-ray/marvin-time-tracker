@@ -16,6 +16,7 @@ type mockMarvinClient struct {
 	allCalls         []string
 	todayItemsResult []byte
 	todayItemsErr    bool
+	todayItemsCalls  int
 }
 
 func (m *mockMarvinClient) Track(taskID, action string) error {
@@ -37,6 +38,7 @@ func (m *mockMarvinClient) UpdateDoc(taskID string, setters []DocSetter) error {
 }
 
 func (m *mockMarvinClient) TodayItems() ([]byte, error) {
+	m.todayItemsCalls++
 	if m.todayItemsErr {
 		return nil, fmt.Errorf("marvin error")
 	}
