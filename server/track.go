@@ -131,21 +131,12 @@ func (th *TrackHandler) HandleStop(w http.ResponseWriter, r *http.Request) {
 		log.Printf("track/stop: doc/update error: %v", err)
 	}
 
-	updateToken := state.UpdateToken
-	stoppedTaskID := taskID
-	th.store.Update(func(s *State) {
-		s.TrackingTaskID = ""
-		s.TaskTitle = ""
-		s.StartedAt = 0
-		s.Times = nil
-		s.LastStopAt = time.Now()
-		s.LiveActivityStartedAt = time.Time{}
-		s.UpdateToken = ""
-	})
+	prev, _ := th.store.ClearTracking(time.Now())
+	updateToken := prev.UpdateToken
 
 	log.Printf("track/stop: stopped %s", taskID)
 
-	notifyTrackingStopped(th.store, th.notifier, th.broker, updateToken, stoppedTaskID)
+	notifyTrackingStopped(th.store, th.notifier, th.broker, updateToken, taskID)
 
 	if th.history != nil && state.StartedAt > 0 {
 		th.history.Add(SessionRecord{

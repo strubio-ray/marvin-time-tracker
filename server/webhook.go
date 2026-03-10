@@ -124,36 +124,26 @@ func (wh *WebhookHandler) HandleStop(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	state := wh.store.Get()
-	updateToken := state.UpdateToken
-	stoppedTaskID := state.TrackingTaskID
-	startedAt := state.StartedAt
-	taskTitle := state.TaskTitle
-
 	now := time.Now()
 	wh.store.Update(func(s *State) {
-		s.TrackingTaskID = ""
-		s.TaskTitle = ""
-		s.StartedAt = 0
-		s.Times = nil
 		s.LastWebhookAt = now
-		s.LastStopAt = now
-		s.LiveActivityStartedAt = time.Time{}
-		s.UpdateToken = ""
 	})
+	prev, _ := wh.store.ClearTracking(now)
+	updateToken := prev.UpdateToken
+	stoppedTaskID := prev.TrackingTaskID
 
 	log.Printf("webhook/stop: stopped tracking")
 
 	notifyTrackingStopped(wh.store, wh.notifier, wh.broker, updateToken, stoppedTaskID)
 
-	if wh.history != nil && startedAt > 0 {
-		now := time.Now().UnixMilli()
+	if wh.history != nil && prev.StartedAt > 0 {
+		stopMs := time.Now().UnixMilli()
 		wh.history.Add(SessionRecord{
 			TaskID:    stoppedTaskID,
-			Title:     taskTitle,
-			StartedAt: startedAt,
-			StoppedAt: now,
-			Duration:  now - startedAt,
+			Title:     prev.TaskTitle,
+			StartedAt: prev.StartedAt,
+			StoppedAt: stopMs,
+			Duration:  stopMs - prev.StartedAt,
 		})
 	}
 }
