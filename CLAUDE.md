@@ -118,15 +118,14 @@ iOS signing requires:
 
 ## Release Pipeline
 
-**Every server or iOS change requires a new git tag to reach Homebrew installations.** See [README.md § Releasing a New Version](README.md#releasing-a-new-version) for the full workflow.
+**Every server or iOS change requires a release to reach Homebrew installations.**
 
-Quick reference:
 ```bash
-git tag -l 'v*' --sort=-v:refname | head -5   # Check existing tags
-git tag v<next>                                 # Create new tag
-git push origin v<next>                         # Triggers bump-homebrew.yml
+just release --dry-run   # Preview next version
+just release             # Bump, changelog, tag, push (triggers Homebrew auto-update)
 ```
 
-Then on the deployment machine: `brew update && brew upgrade marvin-relay && brew services restart marvin-relay`
+Cocogitto (`cog.toml`) determines the version automatically from conventional commits:
+- `feat:` → minor bump, `fix:` → patch bump, `feat!:`/`BREAKING CHANGE` → major bump
 
-**If you skip the tag, the Homebrew formula won't update and the server won't pick up new changes.** The `bump-homebrew.yml` GitHub Action only fires on tag push (`v*`).
+Then on the deployment machine: `brew update && brew upgrade marvin-relay && brew services restart marvin-relay`

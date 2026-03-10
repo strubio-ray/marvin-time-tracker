@@ -44,14 +44,14 @@ just ios-deploy    # Build, install, launch on device
 
 Pushing a tag triggers the full release pipeline — Homebrew formula, server binary, and userscript are all updated automatically.
 
-### 1. Tag and push
+### 1. Bump and push
 
 ```bash
-git tag v1.2.0
-git push --tags
+just release --dry-run   # Preview next version
+just release             # Bump, changelog, tag, and push
 ```
 
-The `bump-homebrew.yml` workflow runs automatically, updating the formula's `url` and `sha256` in the [Homebrew tap](https://github.com/strubio-ray/homebrew-tap). The formula uses `#{version}` in ldflags and the test block, so those stay in sync with no manual edits.
+Cocogitto determines the version from conventional commits (`feat:` → minor, `fix:` → patch, `feat!:` → major). The `bump-homebrew.yml` workflow runs automatically on tag push, updating the formula in the [Homebrew tap](https://github.com/strubio-ray/homebrew-tap).
 
 ### 2. Update the server
 
