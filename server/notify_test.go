@@ -7,15 +7,14 @@ import (
 )
 
 func TestNotifyUsesUpdateToken(t *testing.T) {
-	store := NewStateStore(tempStateFile(t))
-	store.Update(func(s *State) {
-		s.UpdateToken = "update-token"
-		s.PushToStartToken = "pts-token"
-		s.DeviceToken = "device-token"
-	})
+	tokens := NotifyTokens{
+		UpdateToken:      "update-token",
+		PushToStartToken: "pts-token",
+		DeviceToken:      "device-token",
+	}
 
 	n := &mockNotifier{}
-	notifyTrackingStarted(context.Background(), store, n, nil, "Task", 1000, 10*time.Millisecond)
+	notifyTrackingStarted(context.Background(), tokens, n, nil, "Task", 1000, 10*time.Millisecond, func() string { return "" })
 
 	if n.updateCalls != 1 {
 		t.Errorf("expected 1 update call, got %d", n.updateCalls)
@@ -34,14 +33,13 @@ func TestNotifyUsesUpdateToken(t *testing.T) {
 }
 
 func TestNotifyUsesPushToStartToken(t *testing.T) {
-	store := NewStateStore(tempStateFile(t))
-	store.Update(func(s *State) {
-		s.PushToStartToken = "pts-token"
-		s.DeviceToken = "device-token"
-	})
+	tokens := NotifyTokens{
+		PushToStartToken: "pts-token",
+		DeviceToken:      "device-token",
+	}
 
 	n := &mockNotifier{}
-	notifyTrackingStarted(context.Background(), store, n, nil, "Task", 1000, 10*time.Millisecond)
+	notifyTrackingStarted(context.Background(), tokens, n, nil, "Task", 1000, 10*time.Millisecond, func() string { return "" })
 
 	if n.startCalls != 1 {
 		t.Errorf("expected 1 start call, got %d", n.startCalls)
@@ -52,23 +50,15 @@ func TestNotifyUsesPushToStartToken(t *testing.T) {
 	if n.silentPushCalls != 1 {
 		t.Errorf("expected 1 silent push call, got %d", n.silentPushCalls)
 	}
-
-	// Push-to-start token should be cleared
-	state := store.Get()
-	if state.PushToStartToken != "" {
-		t.Errorf("expected pushToStartToken to be cleared, got %s", state.PushToStartToken)
-	}
 }
 
 func TestNotifySilentPushThenAlert(t *testing.T) {
-	store := NewStateStore(tempStateFile(t))
-	store.Update(func(s *State) {
-		s.DeviceToken = "device-token"
-		s.TrackingTaskID = "task-1"
-	})
+	tokens := NotifyTokens{
+		DeviceToken: "device-token",
+	}
 
 	n := &mockNotifier{}
-	notifyTrackingStarted(context.Background(), store, n, nil, "My Task", 1000, 10*time.Millisecond)
+	notifyTrackingStarted(context.Background(), tokens, n, nil, "My Task", 1000, 10*time.Millisecond, func() string { return "" })
 
 	if n.silentPushCalls != 1 {
 		t.Errorf("expected 1 silent push call, got %d", n.silentPushCalls)
@@ -89,23 +79,18 @@ func TestNotifySilentPushThenAlert(t *testing.T) {
 }
 
 func TestNotifySilentPushSucceeds(t *testing.T) {
-	store := NewStateStore(tempStateFile(t))
-	store.Update(func(s *State) {
-		s.DeviceToken = "device-token"
-		s.TrackingTaskID = "task-1"
-	})
+	tokens := NotifyTokens{
+		DeviceToken: "device-token",
+	}
 
 	n := &mockNotifier{}
-	notifyTrackingStarted(context.Background(), store, n, nil, "Task", 1000, 50*time.Millisecond)
+	notifyTrackingStarted(context.Background(), tokens, n, nil, "Task", 1000, 50*time.Millisecond, func() string {
+		return "new-update-token"
+	})
 
 	if n.silentPushCalls != 1 {
 		t.Fatalf("expected 1 silent push call, got %d", n.silentPushCalls)
 	}
-
-	// Simulate app waking up and registering an update token
-	store.Update(func(s *State) {
-		s.UpdateToken = "new-update-token"
-	})
 
 	// Wait for grace period
 	time.Sleep(100 * time.Millisecond)
@@ -117,19 +102,13 @@ func TestNotifySilentPushSucceeds(t *testing.T) {
 }
 
 func TestNotifyTrackingStopsDuringGrace(t *testing.T) {
-	store := NewStateStore(tempStateFile(t))
-	store.Update(func(s *State) {
-		s.DeviceToken = "device-token"
-		s.TrackingTaskID = "task-1"
-	})
+	tokens := NotifyTokens{
+		DeviceToken: "device-token",
+	}
 
+	// Return "stopped" to simulate tracking having stopped
 	n := &mockNotifier{}
-	notifyTrackingStarted(context.Background(), store, n, nil, "Task", 1000, 50*time.Millisecond)
-
-	// Simulate tracking stopped
-	store.Update(func(s *State) {
-		s.TrackingTaskID = ""
-	})
+	notifyTrackingStarted(context.Background(), tokens, n, nil, "Task", 1000, 50*time.Millisecond, func() string { return "stopped" })
 
 	time.Sleep(100 * time.Millisecond)
 
@@ -139,11 +118,11 @@ func TestNotifyTrackingStopsDuringGrace(t *testing.T) {
 }
 
 func TestNotifyNoTokens(t *testing.T) {
-	store := NewStateStore(tempStateFile(t))
+	tokens := NotifyTokens{}
 	n := &mockNotifier{}
 
 	// Should not panic
-	notifyTrackingStarted(context.Background(), store, n, nil, "Task", 1000, 10*time.Millisecond)
+	notifyTrackingStarted(context.Background(), tokens, n, nil, "Task", 1000, 10*time.Millisecond, nil)
 
 	if n.updateCalls != 0 || n.startCalls != 0 || n.silentPushCalls != 0 || n.alertPushCalls != 0 {
 		t.Error("expected no calls with no tokens")
@@ -151,25 +130,22 @@ func TestNotifyNoTokens(t *testing.T) {
 }
 
 func TestNotifyNilNotifier(t *testing.T) {
-	store := NewStateStore(tempStateFile(t))
-	store.Update(func(s *State) {
-		s.UpdateToken = "token"
-	})
+	tokens := NotifyTokens{
+		UpdateToken: "token",
+	}
 
 	// Should not panic
-	notifyTrackingStarted(context.Background(), store, nil, nil, "Task", 1000, 10*time.Millisecond)
+	notifyTrackingStarted(context.Background(), tokens, nil, nil, "Task", 1000, 10*time.Millisecond, nil)
 }
 
 func TestNotifyContextCancellation(t *testing.T) {
-	store := NewStateStore(tempStateFile(t))
-	store.Update(func(s *State) {
-		s.DeviceToken = "device-token"
-		s.TrackingTaskID = "task-1"
-	})
+	tokens := NotifyTokens{
+		DeviceToken: "device-token",
+	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	n := &mockNotifier{}
-	notifyTrackingStarted(ctx, store, n, nil, "Task", 1000, 1*time.Second)
+	notifyTrackingStarted(ctx, tokens, n, nil, "Task", 1000, 1*time.Second, func() string { return "" })
 
 	// Cancel before grace period
 	cancel()
@@ -181,13 +157,8 @@ func TestNotifyContextCancellation(t *testing.T) {
 }
 
 func TestNotifyTrackingStopped(t *testing.T) {
-	store := NewStateStore(tempStateFile(t))
-	store.Update(func(s *State) {
-		s.DeviceToken = "device-token"
-	})
-
 	n := &mockNotifier{}
-	notifyTrackingStopped(store, n, nil, "update-token", "")
+	notifyTrackingStopped(n, nil, "update-token", "device-token", "")
 
 	if n.endCalls != 1 {
 		t.Errorf("expected 1 end call, got %d", n.endCalls)
@@ -198,13 +169,8 @@ func TestNotifyTrackingStopped(t *testing.T) {
 }
 
 func TestNotifyTrackingStoppedNoUpdateToken(t *testing.T) {
-	store := NewStateStore(tempStateFile(t))
-	store.Update(func(s *State) {
-		s.DeviceToken = "device-token"
-	})
-
 	n := &mockNotifier{}
-	notifyTrackingStopped(store, n, nil, "", "")
+	notifyTrackingStopped(n, nil, "", "device-token", "")
 
 	if n.endCalls != 0 {
 		t.Errorf("expected 0 end calls, got %d", n.endCalls)
@@ -215,7 +181,6 @@ func TestNotifyTrackingStoppedNoUpdateToken(t *testing.T) {
 }
 
 func TestNotifyTrackingStoppedNilNotifier(t *testing.T) {
-	store := NewStateStore(tempStateFile(t))
 	// Should not panic
-	notifyTrackingStopped(store, nil, nil, "update-token", "")
+	notifyTrackingStopped(nil, nil, "update-token", "device-token", "")
 }

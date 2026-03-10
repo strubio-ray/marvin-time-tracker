@@ -92,5 +92,20 @@ func (rn *Renewal) check() {
 		s.UpdateToken = "" // Will be re-registered by iOS app
 	})
 
-	notifyTrackingStarted(rn.ctx, rn.store, rn.notifier, rn.broker, state.TaskTitle, state.StartedAt, DefaultSilentPushGracePeriod)
+	renewedState := rn.store.Get()
+	tokens := NotifyTokens{
+		UpdateToken:      renewedState.UpdateToken,
+		PushToStartToken: renewedState.PushToStartToken,
+		DeviceToken:      renewedState.DeviceToken,
+	}
+	if tokens.PushToStartToken != "" {
+		rn.store.Update(func(s *State) { s.PushToStartToken = "" })
+	}
+	notifyTrackingStarted(rn.ctx, tokens, rn.notifier, rn.broker, state.TaskTitle, state.StartedAt, DefaultSilentPushGracePeriod, func() string {
+		s := rn.store.Get()
+		if !s.IsTracking() {
+			return "stopped"
+		}
+		return s.UpdateToken
+	})
 }

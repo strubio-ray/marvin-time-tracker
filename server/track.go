@@ -76,7 +76,22 @@ func (th *TrackHandler) HandleStart(w http.ResponseWriter, r *http.Request) {
 
 	log.Printf("track/start: started %s (%s)", req.TaskID, req.Title)
 
-	notifyTrackingStarted(r.Context(), th.store, th.notifier, th.broker, req.Title, startedAt, DefaultSilentPushGracePeriod)
+	state := th.store.Get()
+	tokens := NotifyTokens{
+		UpdateToken:      state.UpdateToken,
+		PushToStartToken: state.PushToStartToken,
+		DeviceToken:      state.DeviceToken,
+	}
+	if tokens.PushToStartToken != "" {
+		th.store.Update(func(s *State) { s.PushToStartToken = "" })
+	}
+	notifyTrackingStarted(r.Context(), tokens, th.notifier, th.broker, req.Title, startedAt, DefaultSilentPushGracePeriod, func() string {
+		s := th.store.Get()
+		if !s.IsTracking() {
+			return "stopped"
+		}
+		return s.UpdateToken
+	})
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{"status": "ok", "startedAt": startedAt})
@@ -136,7 +151,7 @@ func (th *TrackHandler) HandleStop(w http.ResponseWriter, r *http.Request) {
 
 	log.Printf("track/stop: stopped %s", taskID)
 
-	notifyTrackingStopped(th.store, th.notifier, th.broker, updateToken, taskID)
+	notifyTrackingStopped(th.notifier, th.broker, updateToken, prev.DeviceToken, taskID)
 
 	if th.history != nil && state.StartedAt > 0 {
 		th.history.Add(SessionRecord{

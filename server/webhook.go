@@ -90,7 +90,22 @@ func (wh *WebhookHandler) HandleStart(w http.ResponseWriter, r *http.Request) {
 
 	log.Printf("webhook/start: tracking %s (%s)", payload.TaskID, payload.Title)
 
-	notifyTrackingStarted(r.Context(), wh.store, wh.notifier, wh.broker, payload.Title, payload.Timestamp, DefaultSilentPushGracePeriod)
+	state := wh.store.Get()
+	tokens := NotifyTokens{
+		UpdateToken:      state.UpdateToken,
+		PushToStartToken: state.PushToStartToken,
+		DeviceToken:      state.DeviceToken,
+	}
+	if tokens.PushToStartToken != "" {
+		wh.store.Update(func(s *State) { s.PushToStartToken = "" })
+	}
+	notifyTrackingStarted(r.Context(), tokens, wh.notifier, wh.broker, payload.Title, payload.Timestamp, DefaultSilentPushGracePeriod, func() string {
+		s := wh.store.Get()
+		if !s.IsTracking() {
+			return "stopped"
+		}
+		return s.UpdateToken
+	})
 }
 
 func (wh *WebhookHandler) HandleStop(w http.ResponseWriter, r *http.Request) {
@@ -134,7 +149,7 @@ func (wh *WebhookHandler) HandleStop(w http.ResponseWriter, r *http.Request) {
 
 	log.Printf("webhook/stop: stopped tracking")
 
-	notifyTrackingStopped(wh.store, wh.notifier, wh.broker, updateToken, stoppedTaskID)
+	notifyTrackingStopped(wh.notifier, wh.broker, updateToken, prev.DeviceToken, stoppedTaskID)
 
 	if wh.history != nil && prev.StartedAt > 0 {
 		stopMs := time.Now().UnixMilli()
