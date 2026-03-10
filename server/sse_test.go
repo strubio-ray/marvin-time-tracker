@@ -195,3 +195,48 @@ func TestSSEDisconnectCleansUp(t *testing.T) {
 		t.Errorf("expected 0 clients after disconnect, got %d", broker.ClientCount())
 	}
 }
+
+func TestSSEWriteErrorCleansUp(t *testing.T) {
+	store := NewStateStore(tempStateFile(t))
+	broker := NewBroker()
+
+	srv := httptest.NewServer(sseHandler(store, broker))
+	defer srv.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL, nil)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("request error: %v", err)
+	}
+
+	// Read initial event to ensure subscription is active
+	scanner := bufio.NewScanner(resp.Body)
+	for scanner.Scan() {
+		if scanner.Text() == "" {
+			break
+		}
+	}
+
+	if broker.ClientCount() != 1 {
+		t.Fatalf("expected 1 client, got %d", broker.ClientCount())
+	}
+
+	// Close the connection from the client side to cause a write error
+	resp.Body.Close()
+
+	// Broadcast an event — the handler should detect the write error and clean up
+	broker.Broadcast(SSEEvent{
+		Type: "tracking_started",
+		Data: []byte(`{"taskId":"task-x","taskTitle":"Write Error","startedAt":9999}`),
+	})
+
+	// Give handler time to detect the write error and clean up
+	time.Sleep(200 * time.Millisecond)
+
+	if broker.ClientCount() != 0 {
+		t.Errorf("expected 0 clients after write error, got %d", broker.ClientCount())
+	}
+}

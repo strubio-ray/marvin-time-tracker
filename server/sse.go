@@ -8,7 +8,9 @@ import (
 	"time"
 )
 
-const sseKeepaliveInterval = 30 * time.Second
+const sseKeepaliveInterval = 20 * time.Second
+
+const sseWriteDeadline = 60 * time.Second
 
 type sseStateEvent struct {
 	Tracking  bool   `json:"tracking"`
@@ -19,8 +21,10 @@ type sseStateEvent struct {
 
 func sseHandler(store *StateStore, broker *Broker) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		flusher, ok := w.(http.Flusher)
-		if !ok {
+		rc := http.NewResponseController(w)
+
+		// Clear the server-wide write deadline for this long-lived connection
+		if err := rc.SetWriteDeadline(time.Time{}); err != nil {
 			http.Error(w, "streaming unsupported", http.StatusInternalServerError)
 			return
 		}
@@ -49,8 +53,16 @@ func sseHandler(store *StateStore, broker *Broker) http.HandlerFunc {
 			log.Printf("sse: marshal error: %v", err)
 			return
 		}
-		fmt.Fprintf(w, "event: state\ndata: %s\n\n", data)
-		flusher.Flush()
+
+		rc.SetWriteDeadline(time.Now().Add(sseWriteDeadline))
+		if _, err := fmt.Fprintf(w, "event: state\ndata: %s\n\n", data); err != nil {
+			log.Printf("sse: write error: %v", err)
+			return
+		}
+		if err := rc.Flush(); err != nil {
+			log.Printf("sse: flush error: %v", err)
+			return
+		}
 
 		ticker := time.NewTicker(sseKeepaliveInterval)
 		defer ticker.Stop()
@@ -60,11 +72,25 @@ func sseHandler(store *StateStore, broker *Broker) http.HandlerFunc {
 			case <-r.Context().Done():
 				return
 			case event := <-ch:
-				fmt.Fprintf(w, "event: %s\ndata: %s\n\n", event.Type, event.Data)
-				flusher.Flush()
+				rc.SetWriteDeadline(time.Now().Add(sseWriteDeadline))
+				if _, err := fmt.Fprintf(w, "event: %s\ndata: %s\n\n", event.Type, event.Data); err != nil {
+					log.Printf("sse: write error: %v", err)
+					return
+				}
+				if err := rc.Flush(); err != nil {
+					log.Printf("sse: flush error: %v", err)
+					return
+				}
 			case <-ticker.C:
-				fmt.Fprintf(w, ": keepalive\n\n")
-				flusher.Flush()
+				rc.SetWriteDeadline(time.Now().Add(sseWriteDeadline))
+				if _, err := fmt.Fprintf(w, ": keepalive\n\n"); err != nil {
+					log.Printf("sse: write error: %v", err)
+					return
+				}
+				if err := rc.Flush(); err != nil {
+					log.Printf("sse: flush error: %v", err)
+					return
+				}
 			}
 		}
 	}
