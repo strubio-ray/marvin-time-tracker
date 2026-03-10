@@ -23,6 +23,7 @@ targets:
       - path: MarvinTimeTracker
       - path: Shared
     info:
+      path: MarvinTimeTracker/Info.plist
       properties:
         CFBundleURLTypes:
           - CFBundleTypeRole: Editor
