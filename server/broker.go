@@ -5,6 +5,11 @@ import (
 	"sync"
 )
 
+// BrokerPublisher is the interface for broadcasting events to SSE clients.
+type BrokerPublisher interface {
+	BroadcastJSON(eventType string, data interface{})
+}
+
 // SSEEvent represents a Server-Sent Event to broadcast to connected clients.
 type SSEEvent struct {
 	Type string // "tracking_started", "tracking_stopped", "state"

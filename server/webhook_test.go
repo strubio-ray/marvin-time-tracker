@@ -12,7 +12,7 @@ import (
 func TestWebhookStart(t *testing.T) {
 	store := NewStateStore(tempStateFile(t))
 	dedup := NewDedupCache(60 * time.Second)
-	wh := NewWebhookHandler(store, dedup, nil, nil, nil)
+	wh := NewWebhookHandler(store, dedup, nil, nil, nil, false)
 
 	body, _ := json.Marshal(webhookPayload{
 		TaskID:    "task-1",
@@ -40,7 +40,7 @@ func TestWebhookStart(t *testing.T) {
 func TestWebhookStop(t *testing.T) {
 	store := NewStateStore(tempStateFile(t))
 	dedup := NewDedupCache(60 * time.Second)
-	wh := NewWebhookHandler(store, dedup, nil, nil, nil)
+	wh := NewWebhookHandler(store, dedup, nil, nil, nil, false)
 
 	// Start first
 	store.Update(func(s *State) {
@@ -71,7 +71,7 @@ func TestWebhookStop(t *testing.T) {
 func TestWebhookStartDedup(t *testing.T) {
 	store := NewStateStore(tempStateFile(t))
 	dedup := NewDedupCache(60 * time.Second)
-	wh := NewWebhookHandler(store, dedup, nil, nil, nil)
+	wh := NewWebhookHandler(store, dedup, nil, nil, nil, false)
 
 	body, _ := json.Marshal(webhookPayload{
 		TaskID:    "task-1",
@@ -101,7 +101,7 @@ func TestWebhookStartDedup(t *testing.T) {
 func TestWebhookStartInvalidJSON(t *testing.T) {
 	store := NewStateStore(tempStateFile(t))
 	dedup := NewDedupCache(60 * time.Second)
-	wh := NewWebhookHandler(store, dedup, nil, nil, nil)
+	wh := NewWebhookHandler(store, dedup, nil, nil, nil, false)
 
 	req := httptest.NewRequest(http.MethodPost, "/webhook/start", bytes.NewReader([]byte("not json")))
 	w := httptest.NewRecorder()
@@ -120,7 +120,7 @@ func TestWebhookStartInvalidJSON(t *testing.T) {
 func TestWebhookStartIgnoresStaleTimesArray(t *testing.T) {
 	store := NewStateStore(tempStateFile(t))
 	dedup := NewDedupCache(60 * time.Second)
-	wh := NewWebhookHandler(store, dedup, nil, nil, nil)
+	wh := NewWebhookHandler(store, dedup, nil, nil, nil, false)
 
 	// Even count = tracking stopped (stale webhook)
 	body, _ := json.Marshal(map[string]interface{}{
@@ -144,7 +144,7 @@ func TestWebhookStartIgnoresStaleTimesArray(t *testing.T) {
 func TestWebhookStartAcceptsActiveTimesArray(t *testing.T) {
 	store := NewStateStore(tempStateFile(t))
 	dedup := NewDedupCache(60 * time.Second)
-	wh := NewWebhookHandler(store, dedup, nil, nil, nil)
+	wh := NewWebhookHandler(store, dedup, nil, nil, nil, false)
 
 	// Odd count = tracking active
 	body, _ := json.Marshal(map[string]interface{}{
@@ -169,7 +169,7 @@ func TestWebhookStartAcceptsActiveTimesArray(t *testing.T) {
 func TestWebhookStartAcceptsEmptyTimesArray(t *testing.T) {
 	store := NewStateStore(tempStateFile(t))
 	dedup := NewDedupCache(60 * time.Second)
-	wh := NewWebhookHandler(store, dedup, nil, nil, nil)
+	wh := NewWebhookHandler(store, dedup, nil, nil, nil, false)
 
 	// No times field — fail open
 	body, _ := json.Marshal(webhookPayload{
@@ -190,7 +190,7 @@ func TestWebhookStartAcceptsEmptyTimesArray(t *testing.T) {
 func TestWebhookStopSetsLastStopAt(t *testing.T) {
 	store := NewStateStore(tempStateFile(t))
 	dedup := NewDedupCache(60 * time.Second)
-	wh := NewWebhookHandler(store, dedup, nil, nil, nil)
+	wh := NewWebhookHandler(store, dedup, nil, nil, nil, false)
 
 	store.Update(func(s *State) {
 		s.TrackingTaskID = "task-1"
@@ -215,7 +215,7 @@ func TestWebhookStopSetsLastStopAt(t *testing.T) {
 func TestWebhookStartMissingTaskID(t *testing.T) {
 	store := NewStateStore(tempStateFile(t))
 	dedup := NewDedupCache(60 * time.Second)
-	wh := NewWebhookHandler(store, dedup, nil, nil, nil)
+	wh := NewWebhookHandler(store, dedup, nil, nil, nil, false)
 
 	body, _ := json.Marshal(webhookPayload{Title: "No ID"})
 

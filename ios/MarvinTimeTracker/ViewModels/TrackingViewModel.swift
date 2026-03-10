@@ -13,27 +13,42 @@ final class TrackingViewModel {
 
     var isOnboarded: Bool = KeychainService.isConfigured
 
-    private var apiClient: MarvinAPIClient? {
-        guard let apiKey = KeychainService.apiKey,
-              let serverURL = KeychainService.serverURL else { return nil }
-        return MarvinAPIClient(apiKey: apiKey, serverURL: serverURL)
+    private let keychain: KeychainServiceProtocol
+    private let apiClientFactory: (String, String) -> any MarvinAPIClientProtocol
+    private let pushTokenServiceFactory: (String, String) -> any PushTokenServiceProtocol
+
+    init(
+        keychain: KeychainServiceProtocol = KeychainStore(),
+        apiClientFactory: @escaping (String, String) -> any MarvinAPIClientProtocol = { MarvinAPIClient(apiKey: $0, serverURL: $1) },
+        pushTokenServiceFactory: @escaping (String, String) -> any PushTokenServiceProtocol = { PushTokenService(serverURL: $0, apiKey: $1) }
+    ) {
+        self.keychain = keychain
+        self.apiClientFactory = apiClientFactory
+        self.pushTokenServiceFactory = pushTokenServiceFactory
     }
 
-    private var pushTokenService: PushTokenService? {
-        guard let serverURL = KeychainService.serverURL,
-              let apiKey = KeychainService.apiKey else { return nil }
-        return PushTokenService(serverURL: serverURL, apiKey: apiKey)
+    private var apiClient: (any MarvinAPIClientProtocol)? {
+        guard let apiKey = keychain.apiKey,
+              let serverURL = keychain.serverURL else { return nil }
+        return apiClientFactory(apiKey, serverURL)
+    }
+
+    private var pushTokenService: (any PushTokenServiceProtocol)? {
+        guard let serverURL = keychain.serverURL,
+              let apiKey = keychain.apiKey else { return nil }
+        return pushTokenServiceFactory(serverURL, apiKey)
     }
 
     // MARK: - Onboarding
 
     func saveCredentials(apiKey: String, serverURL: String) {
-        KeychainService.apiKey = apiKey
-        KeychainService.serverURL = serverURL
-        isOnboarded = KeychainService.isConfigured
+        var kc = keychain
+        kc.apiKey = apiKey
+        kc.serverURL = serverURL
+        isOnboarded = kc.isConfigured
 
         // Also save server URL to App Group for widget extension access
-        let defaults = UserDefaults(suiteName: "group.com.strubio.MarvinTimeTracker")
+        let defaults = UserDefaults(suiteName: AppConstants.appGroupSuite)
         defaults?.set(serverURL, forKey: "serverURL")
     }
 
@@ -125,11 +140,15 @@ final class TrackingViewModel {
             Task {
                 for await tokenData in activity.pushTokenUpdates {
                     let token = tokenData.map { String(format: "%02x", $0) }.joined()
-                    try? await pushTokenService?.register(updateToken: token)
+                    do {
+                        try await pushTokenService?.register(pushToStartToken: nil, updateToken: token, deviceToken: nil)
+                    } catch {
+                        print("Failed to register update token: \(error)")
+                    }
                 }
             }
         } catch {
-            // Live Activity may not be available (e.g., simulator)
+            print("Failed to start Live Activity: \(error)")
         }
     }
 
@@ -140,7 +159,11 @@ final class TrackingViewModel {
 
         for await tokenData in Activity<TimeTrackerAttributes>.pushToStartTokenUpdates {
             let token = tokenData.map { String(format: "%02x", $0) }.joined()
-            try? await service.register(pushToStartToken: token)
+            do {
+                try await service.register(pushToStartToken: token, updateToken: nil, deviceToken: nil)
+            } catch {
+                print("Failed to register push-to-start token: \(error)")
+            }
         }
     }
 
@@ -149,19 +172,28 @@ final class TrackingViewModel {
             Task {
                 for await tokenData in activity.pushTokenUpdates {
                     let token = tokenData.map { String(format: "%02x", $0) }.joined()
-                    try? await pushTokenService?.register(updateToken: token)
+                    do {
+                        try await pushTokenService?.register(pushToStartToken: nil, updateToken: token, deviceToken: nil)
+                    } catch {
+                        print("Failed to register activity update token: \(error)")
+                    }
                 }
             }
         }
     }
 
     func registerDeviceToken(_ token: String) async {
-        try? await pushTokenService?.register(deviceToken: token)
+        do {
+            try await pushTokenService?.register(pushToStartToken: nil, updateToken: nil, deviceToken: token)
+        } catch {
+            print("Failed to register device token: \(error)")
+        }
     }
 
     func signOut() {
-        KeychainService.apiKey = nil
-        KeychainService.serverURL = nil
+        var kc = keychain
+        kc.apiKey = nil
+        kc.serverURL = nil
         isOnboarded = false
         trackingState = .idle
         todayTasks = []

@@ -19,17 +19,19 @@ type WebhookHandler struct {
 	store    *StateStore
 	dedup    *DedupCache
 	notifier Notifier
-	broker   *Broker
-	history  *HistoryStore
+	broker   BrokerPublisher
+	history  SessionRecorder
+	debug    bool
 }
 
-func NewWebhookHandler(store *StateStore, dedup *DedupCache, notifier Notifier, broker *Broker, history *HistoryStore) *WebhookHandler {
+func NewWebhookHandler(store *StateStore, dedup *DedupCache, notifier Notifier, broker BrokerPublisher, history SessionRecorder, debug bool) *WebhookHandler {
 	return &WebhookHandler{
 		store:    store,
 		dedup:    dedup,
 		notifier: notifier,
 		broker:   broker,
 		history:  history,
+		debug:    debug,
 	}
 }
 
@@ -37,12 +39,15 @@ func (wh *WebhookHandler) HandleStart(w http.ResponseWriter, r *http.Request) {
 	// Acknowledge immediately
 	w.WriteHeader(http.StatusOK)
 
+	r.Body = http.MaxBytesReader(w, r.Body, 64*1024)
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		log.Printf("webhook/start: failed to read body: %v", err)
 		return
 	}
-	log.Printf("webhook/start: raw body: %s", string(body))
+	if wh.debug {
+		log.Printf("webhook/start: raw body: %s", string(body))
+	}
 
 	var payload webhookPayload
 	if err := json.Unmarshal(body, &payload); err != nil {
@@ -85,18 +90,31 @@ func (wh *WebhookHandler) HandleStart(w http.ResponseWriter, r *http.Request) {
 
 	log.Printf("webhook/start: tracking %s (%s)", payload.TaskID, payload.Title)
 
-	notifyTrackingStarted(r.Context(), wh.store, wh.notifier, wh.broker, payload.Title, payload.Timestamp, DefaultSilentPushGracePeriod)
+	tokens, err := wh.store.ConsumeNotifyTokens()
+	if err != nil {
+		log.Printf("webhook/start: failed to consume tokens: %v", err)
+	}
+	notifyTrackingStarted(r.Context(), tokens, wh.notifier, wh.broker, payload.Title, payload.Timestamp, DefaultSilentPushGracePeriod, func() string {
+		s := wh.store.Get()
+		if !s.IsTracking() {
+			return "stopped"
+		}
+		return s.UpdateToken
+	})
 }
 
 func (wh *WebhookHandler) HandleStop(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 
+	r.Body = http.MaxBytesReader(w, r.Body, 64*1024)
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		log.Printf("webhook/stop: failed to read body: %v", err)
 		return
 	}
-	log.Printf("webhook/stop: raw body: %s", string(body))
+	if wh.debug {
+		log.Printf("webhook/stop: raw body: %s", string(body))
+	}
 
 	var payload webhookPayload
 	if err := json.Unmarshal(body, &payload); err != nil {
@@ -116,36 +134,28 @@ func (wh *WebhookHandler) HandleStop(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	state := wh.store.Get()
-	updateToken := state.UpdateToken
-	stoppedTaskID := state.TrackingTaskID
-	startedAt := state.StartedAt
-	taskTitle := state.TaskTitle
-
 	now := time.Now()
-	wh.store.Update(func(s *State) {
-		s.TrackingTaskID = ""
-		s.TaskTitle = ""
-		s.StartedAt = 0
-		s.Times = nil
+	prev, err := wh.store.ClearTracking(now, func(s *State) {
 		s.LastWebhookAt = now
-		s.LastStopAt = now
-		s.LiveActivityStartedAt = time.Time{}
-		s.UpdateToken = ""
 	})
+	if err != nil {
+		log.Printf("webhook/stop: failed to clear tracking: %v", err)
+	}
+	updateToken := prev.UpdateToken
+	stoppedTaskID := prev.TrackingTaskID
 
 	log.Printf("webhook/stop: stopped tracking")
 
-	notifyTrackingStopped(wh.store, wh.notifier, wh.broker, updateToken, stoppedTaskID)
+	notifyTrackingStopped(wh.notifier, wh.broker, updateToken, prev.DeviceToken, stoppedTaskID)
 
-	if wh.history != nil && startedAt > 0 {
-		now := time.Now().UnixMilli()
+	if wh.history != nil && prev.StartedAt > 0 {
+		stopMs := time.Now().UnixMilli()
 		wh.history.Add(SessionRecord{
 			TaskID:    stoppedTaskID,
-			Title:     taskTitle,
-			StartedAt: startedAt,
-			StoppedAt: now,
-			Duration:  now - startedAt,
+			Title:     prev.TaskTitle,
+			StartedAt: prev.StartedAt,
+			StoppedAt: stopMs,
+			Duration:  stopMs - prev.StartedAt,
 		})
 	}
 }

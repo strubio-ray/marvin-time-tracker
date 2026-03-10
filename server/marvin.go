@@ -1,11 +1,11 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
-	"strings"
 	"time"
 )
 
@@ -42,8 +42,14 @@ func NewMarvinClient(token, fullAccessToken string) MarvinAPIClient {
 }
 
 func (mc *marvinClient) Track(taskID string, action string) error {
-	payload := fmt.Sprintf(`{"taskId":"%s","action":"%s"}`, taskID, action)
-	req, err := http.NewRequest(http.MethodPost, mc.baseURL+"/track", strings.NewReader(payload))
+	payloadBytes, err := json.Marshal(struct {
+		TaskID string `json:"taskId"`
+		Action string `json:"action"`
+	}{TaskID: taskID, Action: action})
+	if err != nil {
+		return fmt.Errorf("track marshal error: %w", err)
+	}
+	req, err := http.NewRequest(http.MethodPost, mc.baseURL+"/track", bytes.NewReader(payloadBytes))
 	if err != nil {
 		return err
 	}
@@ -81,7 +87,7 @@ func (mc *marvinClient) UpdateDoc(taskID string, setters []DocSetter) error {
 		return fmt.Errorf("doc/update marshal error: %w", err)
 	}
 
-	req, err := http.NewRequest(http.MethodPost, mc.baseURL+"/doc/update", strings.NewReader(string(payloadBytes)))
+	req, err := http.NewRequest(http.MethodPost, mc.baseURL+"/doc/update", bytes.NewReader(payloadBytes))
 	if err != nil {
 		return err
 	}
@@ -142,7 +148,7 @@ func (mc *marvinClient) Retrack(taskID string, times []int64) error {
 		return fmt.Errorf("retrack marshal error: %w", err)
 	}
 
-	req, err := http.NewRequest(http.MethodPost, mc.baseURL+"/retrack", strings.NewReader(string(payloadBytes)))
+	req, err := http.NewRequest(http.MethodPost, mc.baseURL+"/retrack", bytes.NewReader(payloadBytes))
 	if err != nil {
 		return err
 	}

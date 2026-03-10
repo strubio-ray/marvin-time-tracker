@@ -1,6 +1,13 @@
 import Foundation
 
-struct MarvinAPIClient {
+protocol MarvinAPIClientProtocol: Sendable {
+    func todayItems() async throws -> [MarvinTask]
+    func startTracking(taskId: String, title: String) async throws
+    func stopTracking(taskId: String?) async throws
+    func fetchStatus() async throws -> ServerStatus
+}
+
+struct MarvinAPIClient: MarvinAPIClientProtocol {
     private let apiKey: String
     private let serverURL: String
 

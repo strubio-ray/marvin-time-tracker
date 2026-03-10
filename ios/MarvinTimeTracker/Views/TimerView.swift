@@ -68,9 +68,10 @@ struct TimerView: View {
                 .fontWeight(.semibold)
                 .multilineTextAlignment(.center)
 
-            Text(timerInterval: startedAt...(.distantFuture), countsDown: false, showsHours: true)
-                .font(.system(size: 56, weight: .light, design: .monospaced))
-                .monospacedDigit()
+            ElapsedTimerText(
+                startedAt: startedAt,
+                font: .system(size: 56, weight: .light, design: .monospaced)
+            )
 
             Button(role: .destructive) {
                 Task { await viewModel.stopTracking() }

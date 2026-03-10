@@ -19,8 +19,19 @@ func NewServer(store *StateStore, dedup *DedupCache, notifier Notifier, opts ...
 		o(so)
 	}
 
-	wh := NewWebhookHandler(store, dedup, notifier, so.broker, so.history)
-	rh := NewRegisterHandler(store, notifier, so.broker)
+	// Convert concrete nil pointers to proper nil interfaces to avoid
+	// non-nil interface wrapping nil pointer issues.
+	var broker BrokerPublisher
+	if so.broker != nil {
+		broker = so.broker
+	}
+	var history SessionRecorder
+	if so.history != nil {
+		history = so.history
+	}
+
+	wh := NewWebhookHandler(store, dedup, notifier, broker, history, so.debug)
+	rh := NewRegisterHandler(store, notifier, broker)
 
 	auth := func(h http.HandlerFunc) http.HandlerFunc {
 		return requireAPIKey(so.apiKey, h)
@@ -28,21 +39,21 @@ func NewServer(store *StateStore, dedup *DedupCache, notifier Notifier, opts ...
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /status", auth(statusHandler(store)))
-	mux.HandleFunc("POST /webhook/start", wh.HandleStart)
-	mux.HandleFunc("POST /webhook/stop", wh.HandleStop)
+	mux.HandleFunc("POST /webhook/start", rateLimitMiddleware(wh.HandleStart))
+	mux.HandleFunc("POST /webhook/stop", rateLimitMiddleware(wh.HandleStop))
 	mux.HandleFunc("POST /register", auth(rh.Handle))
 	mux.HandleFunc("GET /userscript/marvin-relay-tracker.user.js", userscriptHandler(so.externalURL))
 
 	if so.history != nil {
-		mux.HandleFunc("GET /history", historyHandler(so.history))
+		mux.HandleFunc("GET /history", auth(historyHandler(so.history)))
 	}
 
 	if so.broker != nil {
-		mux.HandleFunc("GET /events", sseHandler(store, so.broker))
+		mux.HandleFunc("GET /events", auth(sseHandler(store, so.broker)))
 	}
 
 	if so.marvin != nil {
-		th := NewTrackHandler(store, so.marvin, notifier, so.broker, so.history)
+		th := NewTrackHandler(store, so.marvin, notifier, broker, history)
 		mux.HandleFunc("POST /start", auth(th.HandleStart))
 		mux.HandleFunc("POST /stop", auth(th.HandleStop))
 		mux.HandleFunc("GET /tasks", auth(tasksHandler(so.marvin)))
@@ -63,10 +74,11 @@ func NewServer(store *StateStore, dedup *DedupCache, notifier Notifier, opts ...
 
 type serverOptions struct {
 	marvin      MarvinAPIClient
-	broker      *Broker
+	broker      *Broker // concrete type needed for SSE handler's Subscribe()
 	history     *HistoryStore
 	externalURL string
 	apiKey      string
+	debug       bool
 }
 
 type ServerOption func(*serverOptions)
@@ -98,6 +110,12 @@ func WithExternalURL(url string) ServerOption {
 func WithAPIKey(key string) ServerOption {
 	return func(so *serverOptions) {
 		so.apiKey = key
+	}
+}
+
+func WithDebug(debug bool) ServerOption {
+	return func(so *serverOptions) {
+		so.debug = debug
 	}
 }
 

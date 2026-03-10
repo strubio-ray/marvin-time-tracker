@@ -15,12 +15,10 @@ struct TimeTrackerLiveActivity: Widget {
                         .lineLimit(1)
                 }
                 DynamicIslandExpandedRegion(.trailing) {
-                    Text(timerInterval: context.state.startedAt...(.distantFuture), countsDown: false, showsHours: true)
-                        .monospacedDigit()
-                        .font(.headline)
+                    ElapsedTimerText(startedAt: context.state.startedAt, font: .headline)
                 }
                 DynamicIslandExpandedRegion(.bottom) {
-                    Link(destination: URL(string: "marvin-tracker://stop")!) {
+                    Link(destination: .stopTracking) {
                         Label("Stop", systemImage: "stop.fill")
                             .font(.headline)
                             .frame(maxWidth: .infinity)
@@ -31,8 +29,7 @@ struct TimeTrackerLiveActivity: Widget {
             } compactLeading: {
                 Image(systemName: "timer")
             } compactTrailing: {
-                Text(timerInterval: context.state.startedAt...(.distantFuture), countsDown: false, showsHours: true)
-                    .monospacedDigit()
+                ElapsedTimerText(startedAt: context.state.startedAt)
                     .frame(width: 56)
             } minimal: {
                 Image(systemName: "timer")
@@ -52,9 +49,10 @@ struct TimeTrackerLiveActivity: Widget {
                     .font(.caption)
                     .lineLimit(1)
 
-                Text(timerInterval: context.state.startedAt...(.distantFuture), countsDown: false, showsHours: true)
-                    .font(.system(size: 28, weight: .medium, design: .monospaced))
-                    .monospacedDigit()
+                ElapsedTimerText(
+                    startedAt: context.state.startedAt,
+                    font: .system(size: 28, weight: .medium, design: .monospaced)
+                )
             }
             .padding(4)
         } else {
@@ -65,14 +63,15 @@ struct TimeTrackerLiveActivity: Widget {
                         .font(.headline)
                         .lineLimit(1)
 
-                    Text(timerInterval: context.state.startedAt...(.distantFuture), countsDown: false, showsHours: true)
-                        .font(.system(size: 32, weight: .light, design: .monospaced))
-                        .monospacedDigit()
+                    ElapsedTimerText(
+                        startedAt: context.state.startedAt,
+                        font: .system(size: 32, weight: .light, design: .monospaced)
+                    )
                 }
 
                 Spacer()
 
-                Link(destination: URL(string: "marvin-tracker://stop")!) {
+                Link(destination: .stopTracking) {
                     Image(systemName: "stop.fill")
                         .font(.title2)
                 }

@@ -11,14 +11,14 @@ const renewalThreshold = 7*time.Hour + 45*time.Minute
 type Renewal struct {
 	store    *StateStore
 	notifier Notifier
-	broker   *Broker
+	broker   BrokerPublisher
 	stop     chan struct{}
 	ctx      context.Context
 	cancel   context.CancelFunc
 	now      func() time.Time // for testing
 }
 
-func NewRenewal(store *StateStore, notifier Notifier, broker *Broker) *Renewal {
+func NewRenewal(store *StateStore, notifier Notifier, broker BrokerPublisher) *Renewal {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Renewal{
 		store:    store,
@@ -92,5 +92,15 @@ func (rn *Renewal) check() {
 		s.UpdateToken = "" // Will be re-registered by iOS app
 	})
 
-	notifyTrackingStarted(rn.ctx, rn.store, rn.notifier, rn.broker, state.TaskTitle, state.StartedAt, DefaultSilentPushGracePeriod)
+	tokens, err := rn.store.ConsumeNotifyTokens()
+	if err != nil {
+		log.Printf("renewal: failed to consume tokens: %v", err)
+	}
+	notifyTrackingStarted(rn.ctx, tokens, rn.notifier, rn.broker, state.TaskTitle, state.StartedAt, DefaultSilentPushGracePeriod, func() string {
+		s := rn.store.Get()
+		if !s.IsTracking() {
+			return "stopped"
+		}
+		return s.UpdateToken
+	})
 }

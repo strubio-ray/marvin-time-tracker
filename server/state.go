@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/json"
 	"os"
-	"path/filepath"
 	"sync"
 	"time"
 )
@@ -63,29 +62,7 @@ func (ss *StateStore) Save() error {
 }
 
 func (ss *StateStore) saveLocked() error {
-	data, err := json.MarshalIndent(ss.state, "", "  ")
-	if err != nil {
-		return err
-	}
-
-	dir := filepath.Dir(ss.filePath)
-	tmp, err := os.CreateTemp(dir, "state-*.json")
-	if err != nil {
-		return err
-	}
-	tmpName := tmp.Name()
-
-	if _, err := tmp.Write(data); err != nil {
-		tmp.Close()
-		os.Remove(tmpName)
-		return err
-	}
-	if err := tmp.Close(); err != nil {
-		os.Remove(tmpName)
-		return err
-	}
-
-	return os.Rename(tmpName, ss.filePath)
+	return atomicWriteJSON(ss.filePath, ss.state)
 }
 
 func (ss *StateStore) Get() State {
@@ -99,6 +76,46 @@ func (ss *StateStore) Update(fn func(*State)) error {
 	defer ss.mu.Unlock()
 	fn(&ss.state)
 	return ss.saveLocked()
+}
+
+// ClearTracking zeroes tracking fields and sets LastStopAt.
+// Returns the state snapshot taken before clearing, for callers that need
+// the previous update token or task ID.
+// Optional extra mutators are applied after clearing (e.g. to set LastWebhookAt).
+func (ss *StateStore) ClearTracking(now time.Time, extras ...func(*State)) (State, error) {
+	ss.mu.Lock()
+	defer ss.mu.Unlock()
+	prev := ss.state
+	ss.state.TrackingTaskID = ""
+	ss.state.TaskTitle = ""
+	ss.state.StartedAt = 0
+	ss.state.Times = nil
+	ss.state.LastStopAt = now
+	ss.state.LiveActivityStartedAt = time.Time{}
+	ss.state.UpdateToken = ""
+	for _, fn := range extras {
+		fn(&ss.state)
+	}
+	return prev, ss.saveLocked()
+}
+
+// ConsumeNotifyTokens returns the current push tokens and atomically clears
+// the single-use PushToStartToken if present.
+func (ss *StateStore) ConsumeNotifyTokens() (NotifyTokens, error) {
+	ss.mu.Lock()
+	defer ss.mu.Unlock()
+	tokens := NotifyTokens{
+		UpdateToken:      ss.state.UpdateToken,
+		PushToStartToken: ss.state.PushToStartToken,
+		DeviceToken:      ss.state.DeviceToken,
+	}
+	if ss.state.PushToStartToken != "" {
+		ss.state.PushToStartToken = ""
+		if err := ss.saveLocked(); err != nil {
+			return tokens, err
+		}
+	}
+	return tokens, nil
 }
 
 func (ss *StateStore) Clear() error {

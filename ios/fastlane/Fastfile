@@ -49,7 +49,7 @@ platform :ios do
 
   desc "Generate Xcode project and sync signing"
   lane :setup do
-    sh("cd .. && /opt/homebrew/bin/xcodegen generate")
+    sh("cd .. && xcodegen generate")
     match(type: "development", readonly: true)
   end
 
@@ -74,7 +74,7 @@ platform :ios do
 
   desc "Build and upload to TestFlight"
   lane :testflight_release do |options|
-    sh("cd .. && /opt/homebrew/bin/xcodegen generate")
+    sh("cd .. && xcodegen generate")
 
     api_key = get_api_key
 
@@ -139,7 +139,7 @@ platform :ios do
 
   desc "Build only (no upload)"
   lane :build do
-    sh("cd .. && /opt/homebrew/bin/xcodegen generate")
+    sh("cd .. && xcodegen generate")
 
     api_key = get_api_key
 

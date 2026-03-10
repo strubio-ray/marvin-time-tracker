@@ -15,14 +15,15 @@ type registerPayload struct {
 type RegisterHandler struct {
 	store    *StateStore
 	notifier Notifier
-	broker   *Broker
+	broker   BrokerPublisher
 }
 
-func NewRegisterHandler(store *StateStore, notifier Notifier, broker *Broker) *RegisterHandler {
+func NewRegisterHandler(store *StateStore, notifier Notifier, broker BrokerPublisher) *RegisterHandler {
 	return &RegisterHandler{store: store, notifier: notifier, broker: broker}
 }
 
 func (rh *RegisterHandler) Handle(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 	var payload registerPayload
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 		http.Error(w, `{"error":"invalid JSON"}`, http.StatusBadRequest)
@@ -61,7 +62,16 @@ func (rh *RegisterHandler) Handle(w http.ResponseWriter, r *http.Request) {
 			}
 		} else if payload.DeviceToken != "" && state.UpdateToken == "" && state.PushToStartToken == "" {
 			// Device token registered while tracking but no activity tokens — use fallback chain
-			notifyTrackingStarted(r.Context(), rh.store, rh.notifier, rh.broker, state.TaskTitle, state.StartedAt, DefaultSilentPushGracePeriod)
+			tokens := NotifyTokens{
+				DeviceToken: payload.DeviceToken,
+			}
+			notifyTrackingStarted(r.Context(), tokens, rh.notifier, rh.broker, state.TaskTitle, state.StartedAt, DefaultSilentPushGracePeriod, func() string {
+				s := rh.store.Get()
+				if !s.IsTracking() {
+					return "stopped"
+				}
+				return s.UpdateToken
+			})
 		}
 	}
 

@@ -3,9 +3,14 @@ package main
 import (
 	"encoding/json"
 	"os"
-	"path/filepath"
 	"sync"
 )
+
+// SessionRecorder is the interface for recording completed tracking sessions.
+type SessionRecorder interface {
+	Add(record SessionRecord) error
+	Recent(n int) []SessionRecord
+}
 
 type SessionRecord struct {
 	TaskID    string `json:"taskId"`
@@ -51,29 +56,7 @@ func (hs *HistoryStore) Load() error {
 }
 
 func (hs *HistoryStore) saveLocked() error {
-	data, err := json.MarshalIndent(hs.data, "", "  ")
-	if err != nil {
-		return err
-	}
-
-	dir := filepath.Dir(hs.filePath)
-	tmp, err := os.CreateTemp(dir, "history-*.json")
-	if err != nil {
-		return err
-	}
-	tmpName := tmp.Name()
-
-	if _, err := tmp.Write(data); err != nil {
-		tmp.Close()
-		os.Remove(tmpName)
-		return err
-	}
-	if err := tmp.Close(); err != nil {
-		os.Remove(tmpName)
-		return err
-	}
-
-	return os.Rename(tmpName, hs.filePath)
+	return atomicWriteJSON(hs.filePath, hs.data)
 }
 
 func (hs *HistoryStore) Add(record SessionRecord) error {

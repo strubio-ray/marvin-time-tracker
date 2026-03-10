@@ -57,6 +57,17 @@ targets:
     dependencies:
       - target: MarvinTimeTrackerWidgets
 
+  MarvinTimeTrackerTests:
+    type: bundle.unit-test
+    supportedDestinations: [iOS]
+    sources:
+      - path: MarvinTimeTrackerTests
+    dependencies:
+      - target: MarvinTimeTracker
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+
   MarvinTimeTrackerWidgets:
     type: app-extension
     supportedDestinations: [iOS]

@@ -21,11 +21,11 @@ type TrackHandler struct {
 	store    *StateStore
 	marvin   MarvinAPIClient
 	notifier Notifier
-	broker   *Broker
-	history  *HistoryStore
+	broker   BrokerPublisher
+	history  SessionRecorder
 }
 
-func NewTrackHandler(store *StateStore, marvin MarvinAPIClient, notifier Notifier, broker *Broker, history *HistoryStore) *TrackHandler {
+func NewTrackHandler(store *StateStore, marvin MarvinAPIClient, notifier Notifier, broker BrokerPublisher, history SessionRecorder) *TrackHandler {
 	return &TrackHandler{
 		store:    store,
 		marvin:   marvin,
@@ -45,6 +45,7 @@ type stopRequest struct {
 }
 
 func (th *TrackHandler) HandleStart(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 64*1024)
 	var req startRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, `{"error":"invalid JSON"}`, http.StatusBadRequest)
@@ -75,13 +76,24 @@ func (th *TrackHandler) HandleStart(w http.ResponseWriter, r *http.Request) {
 
 	log.Printf("track/start: started %s (%s)", req.TaskID, req.Title)
 
-	notifyTrackingStarted(r.Context(), th.store, th.notifier, th.broker, req.Title, startedAt, DefaultSilentPushGracePeriod)
+	tokens, err := th.store.ConsumeNotifyTokens()
+	if err != nil {
+		log.Printf("track/start: failed to consume tokens: %v", err)
+	}
+	notifyTrackingStarted(r.Context(), tokens, th.notifier, th.broker, req.Title, startedAt, DefaultSilentPushGracePeriod, func() string {
+		s := th.store.Get()
+		if !s.IsTracking() {
+			return "stopped"
+		}
+		return s.UpdateToken
+	})
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{"status": "ok", "startedAt": startedAt})
 }
 
 func (th *TrackHandler) HandleStop(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 64*1024)
 	var req stopRequest
 	// Body is optional for stop
 	json.NewDecoder(r.Body).Decode(&req)
@@ -129,21 +141,15 @@ func (th *TrackHandler) HandleStop(w http.ResponseWriter, r *http.Request) {
 		log.Printf("track/stop: doc/update error: %v", err)
 	}
 
-	updateToken := state.UpdateToken
-	stoppedTaskID := taskID
-	th.store.Update(func(s *State) {
-		s.TrackingTaskID = ""
-		s.TaskTitle = ""
-		s.StartedAt = 0
-		s.Times = nil
-		s.LastStopAt = time.Now()
-		s.LiveActivityStartedAt = time.Time{}
-		s.UpdateToken = ""
-	})
+	prev, err := th.store.ClearTracking(time.Now())
+	if err != nil {
+		log.Printf("track/stop: failed to clear tracking: %v", err)
+	}
+	updateToken := prev.UpdateToken
 
 	log.Printf("track/stop: stopped %s", taskID)
 
-	notifyTrackingStopped(th.store, th.notifier, th.broker, updateToken, stoppedTaskID)
+	notifyTrackingStopped(th.notifier, th.broker, updateToken, prev.DeviceToken, taskID)
 
 	if th.history != nil && state.StartedAt > 0 {
 		th.history.Add(SessionRecord{
