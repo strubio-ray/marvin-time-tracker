@@ -45,7 +45,7 @@ Version is managed in `ios/version.xcconfig` (`MARKETING_VERSION` and `CURRENT_P
 
 ### Go Server (`server/`)
 
-Single-binary relay server using Go 1.22+ stdlib `net/http` routing. Two external deps: `sideshow/apns2` (APNs push) and `rs/cors`.
+Single-binary relay server using Go 1.22+ stdlib `net/http` routing. External deps: `golang-jwt/jwt` (APNs JWT auth), `rs/cors`, `golang.org/x/net` (HTTP/2 for APNs), `golang.org/x/time` (rate limiting).
 
 Key files and their roles:
 - **`main.go`** — Wires config, state store, dedup, APNs client, renewal, and dual HTTP servers (public + private) via errgroup
@@ -56,8 +56,15 @@ Key files and their roles:
 - **`state.go`** — `StateStore` with JSON file persistence and atomic rename. Holds tracking state + push tokens
 - **`dedup.go`** — Deduplicates Marvin's duplicate webhook firings (~9s apart) using composite key
 - **`renewal.go`** — Handles 8-hour Live Activity cap by ending and restarting activities at ~7h45m
-- **`apns.go`** — APNs client wrapper using `sideshow/apns2` with JWT auth
+- **`apns.go`** — Custom APNs client using `golang-jwt/jwt` for ES256 JWT auth, HTTP/2 transport, exponential retry
 - **`notifier.go`** — `Notifier` interface abstracting push notification delivery (enables test mocks)
+- **`notify.go`** — Orchestrates notification delivery: Live Activity push + silent push + alert fallback with grace period
+- **`broker.go`** — SSE pub/sub broker managing client subscriptions and fan-out broadcasts
+- **`sse.go`** — `GET /events` SSE handler with keepalive and initial state snapshot
+- **`history.go`** — `HistoryStore` recording completed tracking sessions (capped at 200), JSON-persisted
+- **`persist.go`** — `atomicWriteJSON` helper (temp file + rename pattern) shared by state and history stores
+- **`ratelimit.go`** — Per-IP token bucket rate limiter for webhook endpoints (auto-cleanup of stale entries)
+- **`userscript.go`** — Serves the embedded userscript with optional `EXTERNAL_URL` rewriting
 - **`config.go`** — Environment variable loading with defaults
 - **`marvin.go`** — Marvin API client (`MarvinAPIClient` interface)
 - **`auth.go`** — `requireAPIKey` middleware for Bearer token auth on app-facing endpoints
@@ -79,6 +86,10 @@ SwiftUI app targeting iOS 18+ / watchOS 11+. Swift 6.0. Uses `@Observable` (no T
 
 Watch support is auto-mirrored Live Activities via `.supplementalActivityFamilies([.small])` — no watchOS target.
 
+### Userscript (`userscript/`)
+
+Tampermonkey userscript injected into Marvin web/desktop app. Fires webhooks to the relay server on tracking start/stop. Embedded into the Go binary via `go:embed` (`userscript/embed.go`) and served at `/userscript/marvin-relay-tracker.user.js`.
+
 ### Data Flow
 
 The server runs two listeners: a **public** listener (`:8080`, exposed via Tailscale Funnel) for webhooks/userscript, and a **private** listener (`:8081`, tailnet-only) for app endpoints.
@@ -88,6 +99,15 @@ Marvin Client → webhook → Go Server :8080 (public) → APNs → iPhone Live 
 iOS App → POST /register → Go Server :8081 (private, stores push tokens)
 iOS App → POST /start|/stop → Go Server :8081 (private) → Marvin API
 ```
+
+## Testing Patterns
+
+Server tests use `httptest.NewServer` with the full `Server` type. Mock implementations:
+- `mockNotifier` (`helpers_test.go`) — thread-safe mock implementing `Notifier` interface, tracks call counts and arguments
+- `mockMarvinClient` — implements `MarvinAPIClient` for testing `/start`, `/stop`, `/tasks` without real API calls
+- Tests create a `StateStore` with `os.CreateTemp` for isolated state files
+
+Key interfaces for testing: `Notifier`, `MarvinAPIClient`, `BrokerPublisher`, `SessionRecorder`.
 
 ## Configuration
 

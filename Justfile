@@ -1,3 +1,7 @@
+# BEGIN agent-sandbox managed
+mod? sandbox ".vm"
+# END agent-sandbox managed
+
 # Build automation for marvin-time-tracker
 
 # List available recipes
