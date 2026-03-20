@@ -5,7 +5,7 @@
 #
 # Format:
 #   paths:
-#     - relative/path    # Relative to /agent-workspace
+#     - relative/path    # Relative to /vm-marvin-time-tracker
 #
 # After changes, run: vagrant reload
 # =============================================================================

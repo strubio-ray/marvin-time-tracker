@@ -31,7 +31,7 @@ files:
   # =============================================================================
   # Shell Configuration
   # =============================================================================
-  # Note: The VM has its own .bashrc with fnm, tmux, etc. configured.
+  # Note: The VM has its own .bashrc with tmux, etc. configured.
   # You may want to copy aliases separately to avoid conflicts.
   #
   # - source: ~/.bash_aliases
